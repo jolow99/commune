@@ -1,36 +1,71 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Commune
 
-## Getting Started
+A multiplayer platform where social movements collaboratively edit a live website through natural language, with real-time voting governance. Every change is a git branch. Every vote is a merge.
 
-First, run the development server:
+## Setup
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### Environment Variables
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Create `.env.local` with:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```
+OPENROUTER_API_KEY=your-key
+NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SERVICE_KEY=your-service-key
+NEXT_PUBLIC_PARTYKIT_HOST=127.0.0.1:1999
+```
 
-## Learn More
+### Supabase Schema
 
-To learn more about Next.js, take a look at the following resources:
+```sql
+create table proposals (
+  id uuid primary key,
+  description text,
+  author text,
+  timestamp bigint,
+  branch text,
+  files jsonb,
+  status text default 'pending',
+  votes jsonb default '[]',
+  votes_needed int default 3,
+  created_at timestamptz default now()
+);
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Development
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Run both Next.js and PartyKit:
 
-## Deploy on Vercel
+```bash
+npm run dev:all
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Or separately in two terminals:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+npm run dev        # Next.js on :3000
+npm run dev:party  # PartyKit on :1999
+```
+
+Open http://localhost:3000 in two browser windows to test multiplayer.
+
+## How It Works
+
+1. User types a natural language change request
+2. LLM (via OpenRouter) generates updated React file(s)
+3. Changes are committed to a new git branch (isomorphic-git)
+4. Proposal appears live to all connected users via PartyKit
+5. When 3 users vote to approve, the branch merges to main
+6. The live page hot-reloads in all browsers via Sandpack
+
+## Deploy PartyKit
+
+```bash
+npx partykit deploy
+```
+
+Update `NEXT_PUBLIC_PARTYKIT_HOST` to your deployed PartyKit URL.

@@ -31,6 +31,12 @@ yarn-error.log*
 # vercel
 .vercel
 
+# partykit local state
+.partykit/
+
+# commune server-side repo
+.commune-repo/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

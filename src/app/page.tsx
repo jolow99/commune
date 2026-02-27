@@ -1,101 +1,196 @@
-import Image from "next/image";
+'use client'
+
+import { useState, useRef, useCallback, useEffect } from 'react'
+import { AnimatePresence } from 'framer-motion'
+import usePartySocket from 'partysocket/react'
+import ProposalFeed from '@/components/ProposalFeed'
+import LivePage from '@/components/LivePage'
+import PreviewModal from '@/components/PreviewModal'
+import type { Proposal, ServerBroadcast } from '@/lib/types'
+
+function getOrCreateUserId() {
+  let id = localStorage.getItem('commune-user-id')
+  if (!id) {
+    id = 'user-' + Math.random().toString(36).slice(2, 10)
+    localStorage.setItem('commune-user-id', id)
+  }
+  return id
+}
+
+const DEFAULT_FILES: Record<string, string> = {
+  'src/App.tsx': `import { motion } from 'framer-motion'
+
+export default function App() {
+  return (
+    <main className="min-h-screen bg-gradient-to-br from-slate-900 to-indigo-950 text-white flex flex-col items-center justify-center px-6">
+      <motion.div
+        initial={{ opacity: 0, y: 30 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.8 }}
+        className="text-center max-w-2xl"
+      >
+        <h1 className="text-6xl font-bold tracking-tight mb-6">
+          Build together.<br />Govern together.
+        </h1>
+        <p className="text-xl text-indigo-300 mb-10">
+          A living platform owned by the movement. Every line of this page was voted in by the community.
+        </p>
+        <motion.a
+          href="#join"
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.97 }}
+          className="inline-block bg-indigo-500 hover:bg-indigo-400 text-white font-semibold px-8 py-4 rounded-2xl text-lg transition-colors"
+        >
+          Join the experiment
+        </motion.a>
+      </motion.div>
+    </main>
+  )
+}`,
+}
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="https://nextjs.org/icons/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+  const [userId, setUserId] = useState('')
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="https://nextjs.org/icons/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+  useEffect(() => {
+    setUserId(getOrCreateUserId())
+  }, [])
+  const [liveFiles, setLiveFiles] = useState<Record<string, string>>(DEFAULT_FILES)
+  const [pending, setPending] = useState<Proposal[]>([])
+  const [history, setHistory] = useState<Proposal[]>([])
+  const [previewProposal, setPreviewProposal] = useState<Proposal | null>(null)
+  const [input, setInput] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  const ws = usePartySocket({
+    host: process.env.NEXT_PUBLIC_PARTYKIT_HOST || '127.0.0.1:1999',
+    room: 'commune-main',
+    onMessage(evt) {
+      const msg: ServerBroadcast = JSON.parse(evt.data)
+      switch (msg.type) {
+        case 'state':
+          if (Object.keys(msg.liveFiles).length > 0) setLiveFiles(msg.liveFiles)
+          setPending(msg.pending)
+          setHistory(msg.history)
+          break
+        case 'proposal_created':
+          setPending((prev) => [...prev, msg.proposal])
+          break
+        case 'proposal_voted':
+          setPending((prev) =>
+            prev.map((p) =>
+              p.id === msg.proposalId ? { ...p, votes: msg.votes } : p
+            )
+          )
+          break
+        case 'proposal_merged':
+          setPending((prev) => prev.filter((p) => p.id !== msg.proposal.id))
+          setHistory((prev) => [msg.proposal, ...prev.filter(h => h.id !== msg.proposal.id)])
+          setLiveFiles(msg.newFiles)
+          break
+      }
+    },
+  })
+
+  const handleSubmit = useCallback(async () => {
+    if (!input.trim() || submitting) return
+    setSubmitting(true)
+    try {
+      const res = await fetch('/api/propose', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userPrompt: input, userId }),
+      })
+      const { proposal } = await res.json()
+      if (proposal) {
+        ws.send(JSON.stringify({ type: 'propose', proposal }))
+        setInput('')
+      }
+    } catch (err) {
+      console.error('Submit error:', err)
+    } finally {
+      setSubmitting(false)
+    }
+  }, [input, submitting, userId, ws])
+
+  const handleVote = useCallback(
+    (proposalId: string) => {
+      ws.send(JSON.stringify({ type: 'vote', proposalId, userId }))
+    },
+    [userId, ws]
+  )
+
+  const handleRollback = useCallback(
+    (proposalId: string) => {
+      ws.send(JSON.stringify({ type: 'rollback', proposalId, userId }))
+    },
+    [userId, ws]
+  )
+
+  return (
+    <div className="h-screen flex flex-col bg-slate-950 text-white">
+      {/* Top bar */}
+      <header className="h-12 border-b border-slate-800 flex items-center justify-between px-4 shrink-0">
+        <h1 className="text-lg font-bold tracking-tight">Commune</h1>
+        <div className="flex items-center gap-3">
+          <div className="flex gap-1.5">
+            {[0].map((i) => (
+              <div
+                key={i}
+                className="w-2.5 h-2.5 rounded-full bg-indigo-400"
+              />
+            ))}
+          </div>
+          <span className="text-xs text-slate-500">
+            {pending.length} pending
+          </span>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
+      </header>
+
+      {/* Main content */}
+      <div className="flex-1 flex overflow-hidden">
+        <ProposalFeed
+          pending={pending}
+          history={history}
+          userId={userId}
+          onVote={handleVote}
+          onRollback={handleRollback}
+          onPreview={setPreviewProposal}
+        />
+        <LivePage files={liveFiles} />
+      </div>
+
+      {/* Bottom bar */}
+      <footer className="h-14 border-t border-slate-800 flex items-center gap-3 px-4 shrink-0">
+        <input
+          ref={inputRef}
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
+          placeholder="Describe a change to the page..."
+          disabled={submitting}
+          className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 disabled:opacity-50"
+        />
+        <button
+          onClick={handleSubmit}
+          disabled={submitting || !input.trim()}
+          className="bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-700 disabled:text-slate-500 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
         >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
+          {submitting ? 'Generating...' : 'Submit'}
+        </button>
+        <span className="text-xs text-slate-600">{userId}</span>
       </footer>
+
+      {/* Preview modal */}
+      <AnimatePresence>
+        {previewProposal && (
+          <PreviewModal
+            proposal={previewProposal}
+            onClose={() => setPreviewProposal(null)}
+          />
+        )}
+      </AnimatePresence>
     </div>
-  );
+  )
 }
