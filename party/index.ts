@@ -1,7 +1,7 @@
 import type { Party, Connection, Server } from 'partykit/server'
 import type { Proposal, ClientMessage, ServerBroadcast } from '../src/lib/types'
 
-const NEXT_SERVER = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+const NEXT_SERVER = (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000').replace(/\/+$/, '')
 
 export default class CommuneServer implements Server {
   readonly room: Party
@@ -90,11 +90,18 @@ export default class CommuneServer implements Server {
         if (proposal.votes.length >= proposal.votesNeeded) {
           // Merge!
           try {
-            const res = await fetch(`${NEXT_SERVER}/api/merge`, {
+            const mergeUrl = `${NEXT_SERVER}/api/merge`
+            console.log('Merging proposal:', msg.proposalId, 'via', mergeUrl)
+            const res = await fetch(mergeUrl, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ proposalId: msg.proposalId }),
             })
+            if (!res.ok) {
+              const text = await res.text()
+              console.error('Merge API error:', res.status, text)
+              return
+            }
             const { newFiles } = await res.json()
             proposal.status = 'approved'
             this.liveFiles = newFiles
