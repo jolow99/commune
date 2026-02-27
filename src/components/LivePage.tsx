@@ -1,5 +1,6 @@
 'use client'
 
+import { useRef, useCallback } from 'react'
 import { SandpackProvider, SandpackLayout, SandpackPreview } from '@codesandbox/sandpack-react'
 
 interface LivePageProps {
@@ -23,6 +24,19 @@ function toSandpackFiles(files: Record<string, string>) {
 
 export default function LivePage({ files }: LivePageProps) {
   const sandpackFiles = toSandpackFiles(files)
+  const overlayRef = useRef<HTMLDivElement>(null)
+
+  // On click/scroll, briefly hide overlay so event reaches the iframe underneath
+  const passThrough = useCallback(() => {
+    if (!overlayRef.current) return
+    overlayRef.current.style.pointerEvents = 'none'
+    // Re-enable after a short delay so cursor tracking resumes
+    setTimeout(() => {
+      if (overlayRef.current) {
+        overlayRef.current.style.pointerEvents = 'auto'
+      }
+    }, 800)
+  }, [])
 
   return (
     <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
@@ -52,6 +66,18 @@ export default function LivePage({ files }: LivePageProps) {
         </SandpackLayout>
       </SandpackProvider>
       </div>
+      {/* Transparent overlay for cursor tracking over the iframe */}
+      <div
+        ref={overlayRef}
+        onPointerDown={passThrough}
+        onWheel={passThrough}
+        style={{
+          position: 'absolute',
+          inset: 0,
+          zIndex: 10,
+          cursor: 'default',
+        }}
+      />
     </div>
   )
 }

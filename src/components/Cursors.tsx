@@ -20,18 +20,6 @@ function countryToFlag(code: string): string {
 export default function Cursors() {
   const [cursors, setCursors] = useState<Map<string, Cursor>>(new Map())
   const lastSent = useRef(0)
-  const overlayRef = useRef<HTMLDivElement>(null)
-
-  // Briefly hide overlay so the event reaches elements underneath (iframe, buttons, etc.)
-  const passThrough = useCallback(() => {
-    if (!overlayRef.current) return
-    overlayRef.current.style.pointerEvents = 'none'
-    requestAnimationFrame(() => {
-      if (overlayRef.current) {
-        overlayRef.current.style.pointerEvents = 'auto'
-      }
-    })
-  }, [])
 
   const ws = usePartySocket({
     host: process.env.NEXT_PUBLIC_PARTYKIT_HOST || '127.0.0.1:1999',
@@ -55,12 +43,11 @@ export default function Cursors() {
     },
   })
 
-  const handlePointerMove = useCallback(
+  const sendPosition = useCallback(
     (e: PointerEvent) => {
       const now = Date.now()
       if (now - lastSent.current < 50) return
       lastSent.current = now
-
       const x = (e.clientX / window.innerWidth) * 100
       const y = (e.clientY / window.innerHeight) * 100
       ws.send(JSON.stringify({ x, y }))
@@ -69,30 +56,12 @@ export default function Cursors() {
   )
 
   useEffect(() => {
-    document.addEventListener('pointermove', handlePointerMove)
-    return () => document.removeEventListener('pointermove', handlePointerMove)
-  }, [handlePointerMove])
+    document.addEventListener('pointermove', sendPosition)
+    return () => document.removeEventListener('pointermove', sendPosition)
+  }, [sendPosition])
 
   return (
     <div className="fixed inset-0 pointer-events-none z-50">
-      {/* Transparent overlay to capture pointer events over iframes.
-          On click/scroll, briefly hide so the event reaches elements below. */}
-      <div
-        ref={overlayRef}
-        className="absolute inset-0 pointer-events-auto z-50"
-        style={{ cursor: 'default' }}
-        onPointerMove={(e) => {
-          const now = Date.now()
-          if (now - lastSent.current < 50) return
-          lastSent.current = now
-          const x = (e.clientX / window.innerWidth) * 100
-          const y = (e.clientY / window.innerHeight) * 100
-          ws.send(JSON.stringify({ x, y }))
-        }}
-        onPointerDown={passThrough}
-        onWheel={passThrough}
-        onContextMenu={passThrough}
-      />
       {Array.from(cursors.entries()).map(([id, cursor]) => (
         <div
           key={id}
@@ -103,7 +72,6 @@ export default function Cursors() {
             transform: 'translate(-4px, -4px)',
           }}
         >
-          {/* Cursor arrow */}
           <svg
             width="16"
             height="20"
@@ -118,7 +86,6 @@ export default function Cursors() {
               strokeWidth="1"
             />
           </svg>
-          {/* Flag label */}
           <span className="absolute left-4 top-3 text-base select-none">
             {countryToFlag(cursor.country)}
           </span>
