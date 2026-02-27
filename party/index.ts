@@ -14,16 +14,18 @@ export default class CommuneServer implements Server {
   }
 
   async onStart() {
-    // Load state from storage
-    this.liveFiles = (await this.room.storage.get('liveFiles')) || {}
-    this.pending = (await this.room.storage.get('pending')) || []
-    this.history = (await this.room.storage.get('history')) || []
-  }
-
-  async saveState() {
-    await this.room.storage.put('liveFiles', this.liveFiles)
-    await this.room.storage.put('pending', this.pending)
-    await this.room.storage.put('history', this.history)
+    // Load state from Supabase via the Next.js API
+    try {
+      const res = await fetch(`${NEXT_SERVER}/api/state`)
+      if (res.ok) {
+        const data = await res.json()
+        this.liveFiles = data.liveFiles || {}
+        this.pending = data.pending || []
+        this.history = data.history || []
+      }
+    } catch (err) {
+      console.error('Failed to load state from API:', err)
+    }
   }
 
   broadcast(msg: ServerBroadcast) {
@@ -60,7 +62,7 @@ export default class CommuneServer implements Server {
           // Initialize liveFiles from proposal's base
           this.liveFiles = { ...proposal.files }
         }
-        await this.saveState()
+
         this.broadcast({ type: 'proposal_created', proposal })
         break
       }
@@ -71,6 +73,13 @@ export default class CommuneServer implements Server {
 
         if (proposal.votes.includes(msg.userId)) return
         proposal.votes.push(msg.userId)
+
+        // Persist vote to Supabase
+        fetch(`${NEXT_SERVER}/api/vote`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ proposalId: msg.proposalId, userId: msg.userId }),
+        }).catch(err => console.error('Vote persist failed:', err))
 
         this.broadcast({
           type: 'proposal_voted',
@@ -91,7 +100,7 @@ export default class CommuneServer implements Server {
             this.liveFiles = newFiles
             this.pending = this.pending.filter(p => p.id !== msg.proposalId)
             this.history.unshift(proposal)
-            await this.saveState()
+    
             this.broadcast({
               type: 'proposal_merged',
               proposal,
@@ -101,7 +110,7 @@ export default class CommuneServer implements Server {
             console.error('Merge failed:', err)
           }
         } else {
-          await this.saveState()
+  
         }
         break
       }
@@ -119,7 +128,7 @@ export default class CommuneServer implements Server {
           const { newFiles } = await res.json()
           target.status = 'rolled_back'
           this.liveFiles = newFiles
-          await this.saveState()
+  
           this.broadcast({
             type: 'proposal_merged',
             proposal: target,
