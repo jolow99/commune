@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { readFiles, revertToFiles } from '@/lib/git'
-import { getProposal, updateProposalStatus, getApprovedProposals } from '@/lib/supabase'
+import { supabase } from '@/lib/supabase'
 
 export const dynamic = 'force-dynamic'
 
@@ -8,13 +8,24 @@ export async function POST(req: NextRequest) {
   try {
     const { proposalId } = await req.json()
 
-    const { data: proposal, error } = await getProposal(proposalId)
+    const { data: proposal, error } = await supabase
+      .from('proposals')
+      .select('*')
+      .eq('id', proposalId)
+      .single()
+
     if (error || !proposal) {
       return NextResponse.json({ error: 'Proposal not found' }, { status: 404 })
     }
 
-    const { data: history } = await getApprovedProposals()
-    const idx = history?.findIndex((p: Record<string, unknown>) => p.id === proposalId) ?? -1
+    // Find the previous approved proposal to revert to
+    const { data: history } = await supabase
+      .from('proposals')
+      .select('*')
+      .eq('status', 'approved')
+      .order('timestamp', { ascending: true })
+
+    const idx = history?.findIndex((p: { id: string }) => p.id === proposalId) ?? -1
     let revertFiles: Record<string, string>
 
     if (idx > 0 && history) {
@@ -23,8 +34,8 @@ export async function POST(req: NextRequest) {
       revertFiles = await readFiles()
     }
 
-    await revertToFiles(revertFiles, `Revert: ${(proposal as Record<string, unknown>).description}`)
-    await updateProposalStatus(proposalId, 'rolled_back')
+    await revertToFiles(revertFiles)
+    await supabase.from('proposals').update({ status: 'rolled_back' }).eq('id', proposalId)
 
     const newFiles = await readFiles()
     return NextResponse.json({ newFiles })

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { readFiles, createProposalBranch } from '@/lib/git'
+import { readFiles } from '@/lib/git'
 import { generateProposal } from '@/lib/agent'
-import { saveProposal } from '@/lib/supabase'
+import { supabase } from '@/lib/supabase'
 import { v4 as uuid } from 'uuid'
 import type { Proposal } from '@/lib/types'
 
@@ -22,8 +22,6 @@ export async function POST(req: NextRequest) {
     const id = uuid()
     const branch = `proposal/${id}`
 
-    await createProposalBranch(id, proposalFiles, description)
-
     const proposal: Proposal = {
       id,
       description,
@@ -36,7 +34,7 @@ export async function POST(req: NextRequest) {
       votesNeeded: 3,
     }
 
-    await saveProposal({
+    await supabase.from('proposals').insert({
       id,
       description,
       author: userId,

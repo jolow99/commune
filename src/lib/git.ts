@@ -1,11 +1,7 @@
-import git from 'isomorphic-git'
-import * as fs from 'node:fs'
-import * as path from 'node:path'
+import { supabase } from './supabase'
 
-const dir = path.join(process.cwd(), '.commune-repo')
-const author = { name: 'Commune', email: 'commune@localhost' }
-
-const DEFAULT_APP_TSX = `import { motion } from 'framer-motion'
+const DEFAULT_FILES: Record<string, string> = {
+  'src/App.tsx': `import { motion } from 'framer-motion'
 
 export default function App() {
   return (
@@ -33,126 +29,74 @@ export default function App() {
       </motion.div>
     </main>
   )
-}`
-
-let initialized = false
-
-async function ensureInit() {
-  if (initialized) return
-  try {
-    await git.resolveRef({ fs, dir, ref: 'HEAD' })
-    initialized = true
-    return
-  } catch {
-    // Need to initialize
-  }
-
-  fs.mkdirSync(dir, { recursive: true })
-  await git.init({ fs, dir, defaultBranch: 'main' })
-
-  const srcDir = path.join(dir, 'src')
-  fs.mkdirSync(srcDir, { recursive: true })
-  fs.writeFileSync(path.join(srcDir, 'App.tsx'), DEFAULT_APP_TSX, 'utf8')
-  await git.add({ fs, dir, filepath: 'src/App.tsx' })
-  await git.commit({ fs, dir, message: 'Initial commit', author })
-  initialized = true
+}`,
 }
 
 export async function readFiles(): Promise<Record<string, string>> {
-  await ensureInit()
-  const files: Record<string, string> = {}
+  const { data, error } = await supabase
+    .from('site_state')
+    .select('files')
+    .eq('id', 'main')
+    .single()
 
-  function walk(dirPath: string) {
-    const entries = fs.readdirSync(dirPath)
-    for (const entry of entries) {
-      if (entry === '.git') continue
-      const fullPath = path.join(dirPath, entry)
-      const stat = fs.statSync(fullPath)
-      if (stat.isDirectory()) {
-        walk(fullPath)
-      } else {
-        const content = fs.readFileSync(fullPath, 'utf8')
-        const relativePath = path.relative(dir, fullPath)
-        files[relativePath] = content
-      }
-    }
+  if (error || !data) {
+    // First run — seed the default files
+    await supabase.from('site_state').upsert({
+      id: 'main',
+      files: DEFAULT_FILES,
+      updated_at: new Date().toISOString(),
+    })
+    return DEFAULT_FILES
   }
 
-  try {
-    await git.checkout({ fs, dir, ref: 'main' })
-  } catch { /* already on main */ }
-  walk(dir)
+  const files = data.files as Record<string, string>
+  if (!files || Object.keys(files).length === 0) {
+    await supabase.from('site_state').update({
+      files: DEFAULT_FILES,
+      updated_at: new Date().toISOString(),
+    }).eq('id', 'main')
+    return DEFAULT_FILES
+  }
+
   return files
 }
 
 export async function createProposalBranch(
-  id: string,
-  files: Record<string, string>,
-  message: string
+  ...[]: [string, Record<string, string>, string]
 ): Promise<void> {
-  await ensureInit()
-  await git.checkout({ fs, dir, ref: 'main' })
-  const branch = `proposal/${id}`
-  await git.branch({ fs, dir, ref: branch })
-  await git.checkout({ fs, dir, ref: branch })
-
-  for (const [filepath, content] of Object.entries(files)) {
-    const fullPath = path.join(dir, filepath)
-    fs.mkdirSync(path.dirname(fullPath), { recursive: true })
-    fs.writeFileSync(fullPath, content, 'utf8')
-    await git.add({ fs, dir, filepath })
-  }
-
-  await git.commit({ fs, dir, message, author })
-  await git.checkout({ fs, dir, ref: 'main' })
+  // No-op: proposal files are stored in the proposals table
 }
 
 export async function mergeBranch(branch: string): Promise<Record<string, string>> {
-  await ensureInit()
-  await git.checkout({ fs, dir, ref: branch })
-  const branchFiles: Record<string, string> = {}
+  // branch is "proposal/<id>", extract the proposal's files from proposals table
+  const proposalId = branch.replace('proposal/', '')
 
-  function walk(dirPath: string) {
-    const entries = fs.readdirSync(dirPath)
-    for (const entry of entries) {
-      if (entry === '.git') continue
-      const fullPath = path.join(dirPath, entry)
-      const stat = fs.statSync(fullPath)
-      if (stat.isDirectory()) {
-        walk(fullPath)
-      } else {
-        const content = fs.readFileSync(fullPath, 'utf8')
-        const relativePath = path.relative(dir, fullPath)
-        branchFiles[relativePath] = content
-      }
-    }
+  const { data: proposal } = await supabase
+    .from('proposals')
+    .select('files')
+    .eq('id', proposalId)
+    .single()
+
+  if (!proposal) {
+    throw new Error(`Proposal ${proposalId} not found`)
   }
-  walk(dir)
 
-  await git.checkout({ fs, dir, ref: 'main' })
-  for (const [filepath, content] of Object.entries(branchFiles)) {
-    const fullPath = path.join(dir, filepath)
-    fs.mkdirSync(path.dirname(fullPath), { recursive: true })
-    fs.writeFileSync(fullPath, content, 'utf8')
-    await git.add({ fs, dir, filepath })
-  }
-  await git.commit({ fs, dir, message: `Merge ${branch}`, author })
+  const newFiles = proposal.files as Record<string, string>
 
-  return branchFiles
+  // Update main state
+  await supabase.from('site_state').update({
+    files: newFiles,
+    updated_at: new Date().toISOString(),
+  }).eq('id', 'main')
+
+  return newFiles
 }
 
 export async function revertToFiles(
   files: Record<string, string>,
-  message: string
 ): Promise<void> {
-  await ensureInit()
-  await git.checkout({ fs, dir, ref: 'main' })
-
-  for (const [filepath, content] of Object.entries(files)) {
-    const fullPath = path.join(dir, filepath)
-    fs.mkdirSync(path.dirname(fullPath), { recursive: true })
-    fs.writeFileSync(fullPath, content, 'utf8')
-    await git.add({ fs, dir, filepath })
-  }
-  await git.commit({ fs, dir, message, author })
+  await supabase.from('site_state').update({
+    files,
+    updated_at: new Date().toISOString(),
+  }).eq('id', 'main')
 }
