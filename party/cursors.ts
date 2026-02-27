@@ -33,12 +33,7 @@ export default class CursorsServer implements Server {
         country: info.country,
       });
 
-      const connections = [...this.room.getConnections()];
-      for (const conn of connections) {
-        if (conn.id !== sender.id) {
-          conn.send(broadcast);
-        }
-      }
+      this.room.broadcast(broadcast, [sender.id]);
     } catch {
       // ignore malformed messages
     }
@@ -47,9 +42,6 @@ export default class CursorsServer implements Server {
   onClose(conn: Connection) {
     this.cursors.delete(conn.id);
     const msg = JSON.stringify({ type: "remove", id: conn.id });
-    const connections = [...this.room.getConnections()];
-    for (const c of connections) {
-      c.send(msg);
-    }
+    this.room.broadcast(msg);
   }
 }
