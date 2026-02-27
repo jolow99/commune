@@ -56,6 +56,7 @@ export default function PreviewModal({ proposal, onClose }: PreviewModalProps) {
         </div>
         <div style={{ flex: 1, overflow: 'hidden' }}>
           <SandpackProvider
+            key={`preview-${proposal.id}`}
             template="react-ts"
             files={sandpackFiles}
             customSetup={{

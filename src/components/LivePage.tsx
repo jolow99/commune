@@ -28,6 +28,7 @@ export default function LivePage({ files }: LivePageProps) {
     <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
       <div style={{ position: 'absolute', inset: 0 }}>
       <SandpackProvider
+        key="live-page"
         template="react-ts"
         files={sandpackFiles}
         customSetup={{
