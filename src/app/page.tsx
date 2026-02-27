@@ -6,6 +6,7 @@ import usePartySocket from 'partysocket/react'
 import ProposalFeed from '@/components/ProposalFeed'
 import LivePage from '@/components/LivePage'
 import PreviewModal from '@/components/PreviewModal'
+import Cursors from '@/components/Cursors'
 import type { Proposal, ServerBroadcast } from '@/lib/types'
 
 function getOrCreateUserId() {
@@ -130,6 +131,7 @@ export default function Home() {
 
   return (
     <div className="h-screen flex flex-col bg-slate-950 text-white">
+      <Cursors />
       {/* Top bar */}
       <header className="h-12 border-b border-slate-800 flex items-center justify-between px-4 shrink-0">
         <h1 className="text-lg font-bold tracking-tight">Commune</h1>

@@ -1,8 +1,11 @@
 {
   "name": "commune",
   "main": "party/index.ts",
+  "parties": {
+    "cursors": "party/cursors.ts"
+  },
   "compatibilityDate": "2024-01-01",
   "vars": {
-    "NEXT_PUBLIC_APP_URL": "https://YOUR_VERCEL_URL.vercel.app"
+    "NEXT_PUBLIC_APP_URL": "https://commune-kappa.vercel.app/"
   }
 }
