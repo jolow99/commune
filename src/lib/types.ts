@@ -15,6 +15,7 @@ export type ClientMessage =
   | { type: 'vote'; proposalId: string; userId: string }
   | { type: 'rollback'; proposalId: string; userId: string }
   | { type: 'sync' }
+  | { type: 'init_state'; liveFiles: Record<string, string>; pending: Proposal[]; history: Proposal[] }
 
 export type ServerBroadcast =
   | { type: 'state'; liveFiles: Record<string, string>; pending: Proposal[]; history: Proposal[] }

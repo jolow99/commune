@@ -65,10 +65,12 @@ export default function Home() {
   const inputRef = useRef<HTMLInputElement>(null)
 
   // Load initial state directly from the API (not dependent on PartyKit)
+  const apiStateRef = useRef<{ liveFiles: Record<string, string>; pending: Proposal[]; history: Proposal[] } | null>(null)
   useEffect(() => {
     fetch('/api/state')
       .then((res) => res.json())
       .then((data) => {
+        apiStateRef.current = data
         if (data.liveFiles && Object.keys(data.liveFiles).length > 0) setLiveFiles(data.liveFiles)
         if (data.pending) setPending(data.pending)
         if (data.history) setHistory(data.history)
@@ -83,10 +85,18 @@ export default function Home() {
       const msg: ServerBroadcast = JSON.parse(evt.data)
       switch (msg.type) {
         case 'state':
-          if (Object.keys(msg.liveFiles).length > 0) setLiveFiles(msg.liveFiles)
-          if (msg.pending.length > 0 || msg.history.length > 0) {
+          if (Object.keys(msg.liveFiles).length > 0) {
+            setLiveFiles(msg.liveFiles)
             setPending(msg.pending)
             setHistory(msg.history)
+          } else if (apiStateRef.current) {
+            // PartyKit has no state — push our API-loaded state to it
+            ws.send(JSON.stringify({
+              type: 'init_state',
+              liveFiles: apiStateRef.current.liveFiles,
+              pending: apiStateRef.current.pending,
+              history: apiStateRef.current.history,
+            }))
           }
           break
         case 'proposal_created':
