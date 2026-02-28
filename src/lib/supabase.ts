@@ -7,4 +7,10 @@ if (!supabaseUrl || !supabaseKey) {
   console.warn('Supabase credentials not configured.')
 }
 
-export const supabase = createClient(supabaseUrl, supabaseKey)
+export const supabase = createClient(supabaseUrl, supabaseKey, {
+  global: {
+    fetch: (url, options = {}) => {
+      return fetch(url, { ...options, cache: 'no-store' })
+    },
+  },
+})

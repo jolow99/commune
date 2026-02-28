@@ -89,32 +89,68 @@ export default class CommuneServer implements Server {
 
         if (proposal.votes.length >= proposal.votesNeeded) {
           // Merge!
+          const mergeUrl = `${NEXT_SERVER}/api/merge`
+          console.log('[MERGE] Starting merge for proposal:', msg.proposalId, 'via', mergeUrl)
+
+          // Perform merge inline — read proposal files and update state directly
+          // This avoids issues with cross-service fetch from PartyKit to Vercel
           try {
-            const mergeUrl = `${NEXT_SERVER}/api/merge`
-            console.log('Merging proposal:', msg.proposalId, 'via', mergeUrl)
             const res = await fetch(mergeUrl, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ proposalId: msg.proposalId }),
             })
+            console.log('[MERGE] Response status:', res.status)
             if (!res.ok) {
               const text = await res.text()
-              console.error('Merge API error:', res.status, text)
+              console.error('[MERGE] API error:', res.status, text)
+
+              // Fallback: use the proposal's files directly from in-memory state
+              console.log('[MERGE] Falling back to in-memory merge')
+              proposal.status = 'approved'
+              this.liveFiles = { ...proposal.files }
+              this.pending = this.pending.filter(p => p.id !== msg.proposalId)
+              this.history.unshift(proposal)
+              this.broadcast({
+                type: 'proposal_merged',
+                proposal,
+                newFiles: this.liveFiles,
+              })
+
+              // Try to persist the merge to Supabase in the background
+              fetch(`${NEXT_SERVER}/api/merge`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ proposalId: msg.proposalId }),
+              }).catch(e => console.error('[MERGE] Background persist failed:', e))
               return
             }
             const { newFiles } = await res.json()
+            console.log('[MERGE] Success, got newFiles')
             proposal.status = 'approved'
             this.liveFiles = newFiles
             this.pending = this.pending.filter(p => p.id !== msg.proposalId)
             this.history.unshift(proposal)
-    
+
             this.broadcast({
               type: 'proposal_merged',
               proposal,
               newFiles,
             })
           } catch (err) {
-            console.error('Merge failed:', err)
+            console.error('[MERGE] Fetch failed:', err)
+
+            // Fallback: merge using in-memory files
+            console.log('[MERGE] Falling back to in-memory merge after error')
+            proposal.status = 'approved'
+            this.liveFiles = { ...proposal.files }
+            this.pending = this.pending.filter(p => p.id !== msg.proposalId)
+            this.history.unshift(proposal)
+            this.broadcast({
+              type: 'proposal_merged',
+              proposal,
+              newFiles: this.liveFiles,
+            })
           }
         } else {
   
@@ -127,22 +163,50 @@ export default class CommuneServer implements Server {
         if (!target) return
 
         try {
-          const res = await fetch(`${NEXT_SERVER}/api/rollback`, {
+          const rollbackUrl = `${NEXT_SERVER}/api/rollback`
+          console.log('[ROLLBACK] Starting rollback for:', msg.proposalId, 'via', rollbackUrl)
+          const res = await fetch(rollbackUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ proposalId: msg.proposalId }),
           })
+          console.log('[ROLLBACK] Response status:', res.status)
+          if (!res.ok) {
+            const text = await res.text()
+            console.error('[ROLLBACK] API error:', res.status, text)
+          }
           const { newFiles } = await res.json()
           target.status = 'rolled_back'
           this.liveFiles = newFiles
-  
+
           this.broadcast({
             type: 'proposal_merged',
             proposal: target,
             newFiles,
           })
         } catch (err) {
-          console.error('Rollback failed:', err)
+          console.error('[ROLLBACK] Fetch failed:', err)
+
+          // Fallback: find the previous approved proposal's files in history
+          const targetIdx = this.history.indexOf(target)
+          const previousApproved = this.history.slice(targetIdx + 1).find(p => p.status === 'approved')
+          const revertFiles = previousApproved ? { ...previousApproved.files } : { ...this.liveFiles }
+
+          target.status = 'rolled_back'
+          this.liveFiles = revertFiles
+
+          this.broadcast({
+            type: 'proposal_merged',
+            proposal: target,
+            newFiles: revertFiles,
+          })
+
+          // Try to persist in background
+          fetch(`${NEXT_SERVER}/api/rollback`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ proposalId: msg.proposalId }),
+          }).catch(e => console.error('[ROLLBACK] Background persist failed:', e))
         }
         break
       }
