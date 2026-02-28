@@ -10,15 +10,15 @@ export interface Proposal {
   votesNeeded: number
 }
 
+// Client sends notifications to PartyKit after API calls succeed
 export type ClientMessage =
-  | { type: 'propose'; proposal: Proposal }
-  | { type: 'vote'; proposalId: string; userId: string }
-  | { type: 'rollback'; proposalId: string; userId: string }
-  | { type: 'sync' }
-  | { type: 'init_state'; liveFiles: Record<string, string>; pending: Proposal[]; history: Proposal[] }
+  | { type: 'notify'; event: 'proposal_created'; proposal: Proposal }
+  | { type: 'notify'; event: 'voted'; proposalId: string; votes: string[] }
+  | { type: 'notify'; event: 'merged'; proposal: Proposal; newFiles: Record<string, string> }
+  | { type: 'notify'; event: 'rollback'; proposal: Proposal; newFiles: Record<string, string> }
 
+// PartyKit broadcasts to all other clients
 export type ServerBroadcast =
-  | { type: 'state'; liveFiles: Record<string, string>; pending: Proposal[]; history: Proposal[] }
   | { type: 'proposal_created'; proposal: Proposal }
   | { type: 'proposal_voted'; proposalId: string; votes: string[] }
   | { type: 'proposal_merged'; proposal: Proposal; newFiles: Record<string, string> }

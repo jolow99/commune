@@ -38,7 +38,20 @@ export async function POST(req: NextRequest) {
     await supabase.from('proposals').update({ status: 'rolled_back' }).eq('id', proposalId)
 
     const newFiles = await readFiles()
-    return NextResponse.json({ newFiles })
+
+    const fullProposal = {
+      id: proposal.id,
+      description: proposal.description,
+      author: proposal.author,
+      timestamp: proposal.timestamp,
+      branch: proposal.branch,
+      files: proposal.files,
+      status: 'rolled_back' as const,
+      votes: proposal.votes || [],
+      votesNeeded: proposal.votes_needed || 3,
+    }
+
+    return NextResponse.json({ newFiles, proposal: fullProposal })
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Unknown error'
     console.error('Rollback error:', message)

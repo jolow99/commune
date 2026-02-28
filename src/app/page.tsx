@@ -64,13 +64,11 @@ export default function Home() {
   const [submitting, setSubmitting] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  // Load initial state directly from the API (not dependent on PartyKit)
-  const apiStateRef = useRef<{ liveFiles: Record<string, string>; pending: Proposal[]; history: Proposal[] } | null>(null)
+  // Load initial state from Supabase via API
   useEffect(() => {
     fetch('/api/state')
       .then((res) => res.json())
       .then((data) => {
-        apiStateRef.current = data
         if (data.liveFiles && Object.keys(data.liveFiles).length > 0) setLiveFiles(data.liveFiles)
         if (data.pending) setPending(data.pending)
         if (data.history) setHistory(data.history)
@@ -78,29 +76,18 @@ export default function Home() {
       .catch((err) => console.error('Failed to load initial state:', err))
   }, [])
 
+  // PartyKit: only receives real-time broadcasts from other clients
   const ws = usePartySocket({
     host: process.env.NEXT_PUBLIC_PARTYKIT_HOST || '127.0.0.1:1999',
     room: 'commune-main',
     onMessage(evt) {
       const msg: ServerBroadcast = JSON.parse(evt.data)
       switch (msg.type) {
-        case 'state':
-          if (Object.keys(msg.liveFiles).length > 0) {
-            setLiveFiles(msg.liveFiles)
-            setPending(msg.pending)
-            setHistory(msg.history)
-          } else if (apiStateRef.current) {
-            // PartyKit has no state — push our API-loaded state to it
-            ws.send(JSON.stringify({
-              type: 'init_state',
-              liveFiles: apiStateRef.current.liveFiles,
-              pending: apiStateRef.current.pending,
-              history: apiStateRef.current.history,
-            }))
-          }
-          break
         case 'proposal_created':
-          setPending((prev) => [...prev, msg.proposal])
+          setPending((prev) => {
+            if (prev.some(p => p.id === msg.proposal.id)) return prev
+            return [...prev, msg.proposal]
+          })
           break
         case 'proposal_voted':
           setPending((prev) =>
@@ -129,8 +116,11 @@ export default function Home() {
       })
       const { proposal } = await res.json()
       if (proposal) {
-        ws.send(JSON.stringify({ type: 'propose', proposal }))
+        // Update local state immediately
+        setPending((prev) => [...prev, proposal])
         setInput('')
+        // Notify other clients via PartyKit
+        ws.send(JSON.stringify({ type: 'notify', event: 'proposal_created', proposal }))
       }
     } catch (err) {
       console.error('Submit error:', err)
@@ -140,17 +130,71 @@ export default function Home() {
   }, [input, submitting, userId, ws])
 
   const handleVote = useCallback(
-    (proposalId: string) => {
-      ws.send(JSON.stringify({ type: 'vote', proposalId, userId }))
+    async (proposalId: string) => {
+      try {
+        const res = await fetch('/api/vote', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ proposalId, userId }),
+        })
+        const data = await res.json()
+        if (data.error) return
+
+        if (data.merged) {
+          // Proposal was merged — update local state
+          setPending((prev) => prev.filter((p) => p.id !== proposalId))
+          setHistory((prev) => [data.proposal, ...prev])
+          setLiveFiles(data.newFiles)
+          // Notify other clients
+          ws.send(JSON.stringify({
+            type: 'notify', event: 'merged',
+            proposal: data.proposal, newFiles: data.newFiles,
+          }))
+        } else {
+          // Just a vote — update local state
+          setPending((prev) =>
+            prev.map((p) =>
+              p.id === proposalId ? { ...p, votes: data.votes } : p
+            )
+          )
+          // Notify other clients
+          ws.send(JSON.stringify({
+            type: 'notify', event: 'voted',
+            proposalId, votes: data.votes,
+          }))
+        }
+      } catch (err) {
+        console.error('Vote error:', err)
+      }
     },
     [userId, ws]
   )
 
   const handleRollback = useCallback(
-    (proposalId: string) => {
-      ws.send(JSON.stringify({ type: 'rollback', proposalId, userId }))
+    async (proposalId: string) => {
+      try {
+        const res = await fetch('/api/rollback', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ proposalId }),
+        })
+        const data = await res.json()
+        if (data.error) return
+
+        // Update local state
+        setPending((prev) => prev.filter((p) => p.id !== proposalId))
+        setHistory((prev) => [data.proposal, ...prev.filter(h => h.id !== proposalId)])
+        setLiveFiles(data.newFiles)
+        // Notify other clients
+        ws.send(JSON.stringify({
+          type: 'notify', event: 'rollback',
+          proposal: data.proposal, newFiles: data.newFiles,
+        }))
+      } catch (err) {
+        console.error('Rollback error:', err)
+      }
     },
-    [userId, ws]
+    [ws]
   )
 
   return (
