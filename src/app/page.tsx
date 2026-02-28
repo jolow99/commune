@@ -62,6 +62,7 @@ export default function Home() {
   const [previewProposal, setPreviewProposal] = useState<Proposal | null>(null)
   const [input, setInput] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [mergingProposalId, setMergingProposalId] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   // Load initial state from Supabase via API
@@ -131,6 +132,21 @@ export default function Home() {
 
   const handleVote = useCallback(
     async (proposalId: string) => {
+      // Optimistically update vote count immediately
+      const proposal = pending.find((p) => p.id === proposalId)
+      if (!proposal) return
+      const optimisticVotes = [...proposal.votes, userId]
+      setPending((prev) =>
+        prev.map((p) =>
+          p.id === proposalId ? { ...p, votes: optimisticVotes } : p
+        )
+      )
+
+      // If this vote will trigger a merge, show merging state
+      if (optimisticVotes.length >= proposal.votesNeeded) {
+        setMergingProposalId(proposalId)
+      }
+
       try {
         const res = await fetch('/api/vote', {
           method: 'POST',
@@ -141,23 +157,20 @@ export default function Home() {
         if (data.error) return
 
         if (data.merged) {
-          // Proposal was merged — update local state
           setPending((prev) => prev.filter((p) => p.id !== proposalId))
           setHistory((prev) => [data.proposal, ...prev])
           setLiveFiles(data.newFiles)
-          // Notify other clients
+          setMergingProposalId(null)
           ws.send(JSON.stringify({
             type: 'notify', event: 'merged',
             proposal: data.proposal, newFiles: data.newFiles,
           }))
         } else {
-          // Just a vote — update local state
           setPending((prev) =>
             prev.map((p) =>
               p.id === proposalId ? { ...p, votes: data.votes } : p
             )
           )
-          // Notify other clients
           ws.send(JSON.stringify({
             type: 'notify', event: 'voted',
             proposalId, votes: data.votes,
@@ -165,9 +178,16 @@ export default function Home() {
         }
       } catch (err) {
         console.error('Vote error:', err)
+        setMergingProposalId(null)
+        // Revert optimistic update on error
+        setPending((prev) =>
+          prev.map((p) =>
+            p.id === proposalId ? { ...p, votes: proposal.votes } : p
+          )
+        )
       }
     },
-    [userId, ws]
+    [userId, ws, pending]
   )
 
   const handleRollback = useCallback(
@@ -224,6 +244,7 @@ export default function Home() {
           pending={pending}
           history={history}
           userId={userId}
+          mergingProposalId={mergingProposalId}
           onVote={handleVote}
           onRollback={handleRollback}
           onPreview={setPreviewProposal}

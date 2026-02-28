@@ -7,6 +7,7 @@ interface ProposalFeedProps {
   pending: Proposal[]
   history: Proposal[]
   userId: string
+  mergingProposalId: string | null
   onVote: (proposalId: string) => void
   onRollback: (proposalId: string) => void
   onPreview: (proposal: Proposal) => void
@@ -35,6 +36,7 @@ export default function ProposalFeed({
   pending,
   history,
   userId,
+  mergingProposalId,
   onVote,
   onRollback,
   onPreview,
@@ -62,21 +64,28 @@ export default function ProposalFeed({
                 <span className="text-xs text-amber-500/70">&middot; Preview may change on merge</span>
               </div>
               <VoteBar votes={p.votes.length} needed={p.votesNeeded} />
-              <div className="flex gap-2 mt-2">
-                <button
-                  onClick={() => onPreview(p)}
-                  className="text-xs px-3 py-1 bg-slate-700 hover:bg-slate-600 rounded text-slate-300 transition-colors"
-                >
-                  Preview
-                </button>
-                <button
-                  onClick={() => onVote(p.id)}
-                  disabled={p.votes.includes(userId)}
-                  className="text-xs px-3 py-1 bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-700 disabled:text-slate-500 rounded text-white transition-colors"
-                >
-                  {p.votes.includes(userId) ? 'Voted' : 'Vote'}
-                </button>
-              </div>
+              {mergingProposalId === p.id ? (
+                <div className="mt-2 flex items-center gap-2">
+                  <div className="w-3 h-3 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
+                  <span className="text-xs text-indigo-400">Merging &amp; rebasing...</span>
+                </div>
+              ) : (
+                <div className="flex gap-2 mt-2">
+                  <button
+                    onClick={() => onPreview(p)}
+                    className="text-xs px-3 py-1 bg-slate-700 hover:bg-slate-600 rounded text-slate-300 transition-colors"
+                  >
+                    Preview
+                  </button>
+                  <button
+                    onClick={() => onVote(p.id)}
+                    disabled={p.votes.includes(userId)}
+                    className="text-xs px-3 py-1 bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-700 disabled:text-slate-500 rounded text-white transition-colors"
+                  >
+                    {p.votes.includes(userId) ? 'Voted' : 'Vote'}
+                  </button>
+                </div>
+              )}
             </motion.div>
           ))}
         </AnimatePresence>

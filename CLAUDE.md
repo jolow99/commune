@@ -50,3 +50,7 @@ npm run dev:all  # Next.js on :3000, PartyKit on :1999
 
 ## Environment Variables
 See `.env.local` — needs `OPENROUTER_API_KEY`, `NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `NEXT_PUBLIC_PARTYKIT_HOST`.
+
+## Workflow Rules
+
+- After any significant architectural change, update `README.md` to reflect the new behavior. The README is the primary documentation for contributors and should stay in sync with the codebase.
