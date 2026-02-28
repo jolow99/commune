@@ -1,10 +1,12 @@
 export interface Proposal {
   id: string
   description: string
+  userPrompt: string
   author: string
   timestamp: number
   branch: string
   files: Record<string, string>
+  baseFilesHash: string
   status: 'pending' | 'approved' | 'rolled_back'
   votes: string[]
   votesNeeded: number

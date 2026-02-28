@@ -42,17 +42,21 @@ export default function PreviewModal({ proposal, onClose }: PreviewModalProps) {
         className="bg-slate-900 rounded-xl border border-slate-700 w-full max-w-4xl h-[80vh] flex flex-col overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-700">
-          <div>
-            <h3 className="text-white font-medium">Preview: {proposal.description}</h3>
-            <p className="text-xs text-slate-400">by {proposal.author.slice(0, 8)}</p>
+        <div className="px-4 py-3 border-b border-slate-700">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs text-indigo-400 italic mb-1">&ldquo;{proposal.userPrompt}&rdquo;</p>
+              <h3 className="text-white font-medium">{proposal.description}</h3>
+              <p className="text-xs text-slate-400">by {proposal.author.slice(0, 8)}</p>
+            </div>
+            <button
+              onClick={onClose}
+              className="text-slate-400 hover:text-white text-xl px-2"
+            >
+              &times;
+            </button>
           </div>
-          <button
-            onClick={onClose}
-            className="text-slate-400 hover:text-white text-xl px-2"
-          >
-            &times;
-          </button>
+          <p className="text-xs text-amber-500/70 mt-2">This preview is approximate. The final result may differ if other proposals merge first.</p>
         </div>
         <div style={{ flex: 1, overflow: 'hidden' }}>
           <SandpackProvider

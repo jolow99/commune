@@ -44,10 +44,12 @@ export async function POST(req: NextRequest) {
     const fullProposal = {
       id: proposal.id,
       description: proposal.description,
+      userPrompt: proposal.user_prompt || proposal.description,
       author: proposal.author,
       timestamp: proposal.timestamp,
       branch: proposal.branch,
       files: proposal.files,
+      baseFilesHash: proposal.base_files_hash || '',
       status: 'rolled_back' as const,
       votes: proposal.votes || [],
       votesNeeded: proposal.votes_needed || 3,

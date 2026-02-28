@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { readFiles } from '@/lib/git'
+import { readFiles, hashFiles } from '@/lib/git'
 import { generateProposal } from '@/lib/agent'
 import { supabase } from '@/lib/supabase'
 import { v4 as uuid } from 'uuid'
@@ -16,6 +16,7 @@ export async function POST(req: NextRequest) {
     }
 
     const currentFiles = await readFiles()
+    const baseFilesHash = hashFiles(currentFiles)
     const { description, files } = await generateProposal(currentFiles, userPrompt)
     const proposalFiles = { ...currentFiles, ...files }
 
@@ -25,10 +26,12 @@ export async function POST(req: NextRequest) {
     const proposal: Proposal = {
       id,
       description,
+      userPrompt,
       author: userId,
       timestamp: Date.now(),
       branch,
       files: proposalFiles,
+      baseFilesHash,
       status: 'pending',
       votes: [],
       votesNeeded: 3,
@@ -37,10 +40,12 @@ export async function POST(req: NextRequest) {
     await supabase.from('proposals').insert({
       id,
       description,
+      user_prompt: userPrompt,
       author: userId,
       timestamp: proposal.timestamp,
       branch,
       files: proposalFiles,
+      base_files_hash: baseFilesHash,
       status: 'pending',
       votes: [],
       votes_needed: 3,

@@ -16,10 +16,12 @@ export async function GET() {
     const all = (proposals || []).map((p) => ({
       id: p.id,
       description: p.description,
+      userPrompt: p.user_prompt || p.description,
       author: p.author,
       timestamp: p.timestamp,
       branch: p.branch,
       files: p.files,
+      baseFilesHash: p.base_files_hash || '',
       status: p.status,
       votes: p.votes || [],
       votesNeeded: p.votes_needed || 3,

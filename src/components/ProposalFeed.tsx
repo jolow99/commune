@@ -55,8 +55,12 @@ export default function ProposalFeed({
               exit={{ backgroundColor: '#22c55e33', opacity: 0, x: -20 }}
               className="mx-3 mb-2 p-3 bg-slate-800 rounded-lg border border-slate-700"
             >
+              <p className="text-xs text-indigo-400 mb-1 line-clamp-2 italic">&ldquo;{p.userPrompt}&rdquo;</p>
               <p className="text-sm text-white mb-2 line-clamp-2">{p.description}</p>
-              <p className="text-xs text-slate-500 mb-2">by {p.author.slice(0, 8)}</p>
+              <div className="flex items-center gap-2 mb-2">
+                <p className="text-xs text-slate-500">by {p.author.slice(0, 8)}</p>
+                <span className="text-xs text-amber-500/70">&middot; Preview may change on merge</span>
+              </div>
               <VoteBar votes={p.votes.length} needed={p.votesNeeded} />
               <div className="flex gap-2 mt-2">
                 <button

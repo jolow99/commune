@@ -1,4 +1,10 @@
+import { createHash } from 'crypto'
 import { supabase } from './supabase'
+
+export function hashFiles(files: Record<string, string>): string {
+  const sorted = JSON.stringify(files, Object.keys(files).sort())
+  return createHash('sha256').update(sorted).digest('hex').slice(0, 16)
+}
 
 export const DEFAULT_FILES: Record<string, string> = {
   'src/App.tsx': `import { motion } from 'framer-motion'
