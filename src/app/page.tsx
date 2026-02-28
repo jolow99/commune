@@ -64,6 +64,18 @@ export default function Home() {
   const [submitting, setSubmitting] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
+  // Load initial state directly from the API (not dependent on PartyKit)
+  useEffect(() => {
+    fetch('/api/state')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.liveFiles && Object.keys(data.liveFiles).length > 0) setLiveFiles(data.liveFiles)
+        if (data.pending) setPending(data.pending)
+        if (data.history) setHistory(data.history)
+      })
+      .catch((err) => console.error('Failed to load initial state:', err))
+  }, [])
+
   const ws = usePartySocket({
     host: process.env.NEXT_PUBLIC_PARTYKIT_HOST || '127.0.0.1:1999',
     room: 'commune-main',
@@ -72,8 +84,10 @@ export default function Home() {
       switch (msg.type) {
         case 'state':
           if (Object.keys(msg.liveFiles).length > 0) setLiveFiles(msg.liveFiles)
-          setPending(msg.pending)
-          setHistory(msg.history)
+          if (msg.pending.length > 0 || msg.history.length > 0) {
+            setPending(msg.pending)
+            setHistory(msg.history)
+          }
           break
         case 'proposal_created':
           setPending((prev) => [...prev, msg.proposal])

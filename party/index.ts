@@ -32,7 +32,23 @@ export default class CommuneServer implements Server {
     this.room.broadcast(JSON.stringify(msg))
   }
 
-  onConnect(conn: Connection) {
+  async onConnect(conn: Connection) {
+    // If state is empty (onStart may have failed), reload from Supabase
+    if (Object.keys(this.liveFiles).length === 0 && this.pending.length === 0 && this.history.length === 0) {
+      try {
+        const res = await fetch(`${NEXT_SERVER}/api/state`)
+        if (res.ok) {
+          const data = await res.json()
+          this.liveFiles = data.liveFiles || {}
+          this.pending = data.pending || []
+          this.history = data.history || []
+          console.log('[STATE] Reloaded state on connect:', Object.keys(this.liveFiles).length, 'files,', this.pending.length, 'pending,', this.history.length, 'history')
+        }
+      } catch (err) {
+        console.error('[STATE] Failed to reload state on connect:', err)
+      }
+    }
+
     conn.send(JSON.stringify({
       type: 'state',
       liveFiles: this.liveFiles,
