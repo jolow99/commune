@@ -23,12 +23,14 @@ function toSandpackFiles(files: Record<string, string>) {
 
 export default function LivePage({ files }: LivePageProps) {
   const sandpackFiles = toSandpackFiles(files)
+  // Sandpack only reads files on mount, so we use a content-derived key to force remount on changes
+  const filesHash = JSON.stringify(files).length + '-' + Object.values(files).reduce((h, s) => { for (let i = 0; i < s.length; i++) h = ((h << 5) - h + s.charCodeAt(i)) | 0; return h; }, 0)
 
   return (
     <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
       <div style={{ position: 'absolute', inset: 0 }}>
       <SandpackProvider
-        key="live-page"
+        key={filesHash}
         template="react-ts"
         files={sandpackFiles}
         customSetup={{

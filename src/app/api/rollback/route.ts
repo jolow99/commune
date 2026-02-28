@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { readFiles, revertToFiles } from '@/lib/git'
+import { readFiles, revertToFiles, DEFAULT_FILES } from '@/lib/git'
 import { supabase } from '@/lib/supabase'
 
 export const dynamic = 'force-dynamic'
@@ -19,19 +19,21 @@ export async function POST(req: NextRequest) {
     }
 
     // Find the previous approved proposal to revert to
-    const { data: history } = await supabase
+    const { data: approvedHistory } = await supabase
       .from('proposals')
       .select('*')
       .eq('status', 'approved')
-      .order('timestamp', { ascending: true })
+      .order('timestamp', { ascending: false })
 
-    const idx = history?.findIndex((p: { id: string }) => p.id === proposalId) ?? -1
+    // Filter out the proposal being rolled back, then take the most recent remaining
+    const previousApproved = approvedHistory?.filter((p: { id: string }) => p.id !== proposalId)[0]
     let revertFiles: Record<string, string>
 
-    if (idx > 0 && history) {
-      revertFiles = history[idx - 1].files as Record<string, string>
+    if (previousApproved) {
+      revertFiles = previousApproved.files as Record<string, string>
     } else {
-      revertFiles = await readFiles()
+      // No previous approved proposal — revert to default
+      revertFiles = DEFAULT_FILES
     }
 
     await revertToFiles(revertFiles)

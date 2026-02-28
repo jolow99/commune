@@ -1,6 +1,6 @@
 import { supabase } from './supabase'
 
-const DEFAULT_FILES: Record<string, string> = {
+export const DEFAULT_FILES: Record<string, string> = {
   'src/App.tsx': `import { motion } from 'framer-motion'
 
 export default function App() {
