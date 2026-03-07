@@ -6,6 +6,31 @@ export function hashFiles(files: Record<string, string>): string {
   return createHash('sha256').update(sorted).digest('hex').slice(0, 16)
 }
 
+export function hashSpec(spec: string): string {
+  return createHash('sha256').update(spec).digest('hex').slice(0, 16)
+}
+
+export const DEFAULT_SPEC = `# Site Spec
+
+## Hero Section
+- Full-screen centered layout
+- Dark gradient background (slate-900 to indigo-950)
+- White text
+
+## Headline
+- "Build together. Govern together."
+- Large bold text (6xl), tight tracking
+
+## Subheading
+- "A living platform owned by the movement. Every line of this page was voted in by the community."
+- Indigo-300 colored, xl size
+
+## Call to Action
+- "Join the experiment" button
+- Indigo-500 background, rounded, hover scale animation
+- Links to #join
+`
+
 export const DEFAULT_FILES: Record<string, string> = {
   'src/App.tsx': `import { motion } from 'framer-motion'
 
@@ -46,10 +71,11 @@ export async function readFiles(): Promise<Record<string, string>> {
     .single()
 
   if (error || !data) {
-    // First run — seed the default files
+    // First run — seed the default files and spec
     await supabase.from('site_state').upsert({
       id: 'main',
       files: DEFAULT_FILES,
+      spec: DEFAULT_SPEC,
       updated_at: new Date().toISOString(),
     })
     return DEFAULT_FILES
@@ -59,12 +85,33 @@ export async function readFiles(): Promise<Record<string, string>> {
   if (!files || Object.keys(files).length === 0) {
     await supabase.from('site_state').update({
       files: DEFAULT_FILES,
+      spec: DEFAULT_SPEC,
       updated_at: new Date().toISOString(),
     }).eq('id', 'main')
     return DEFAULT_FILES
   }
 
   return files
+}
+
+export async function readSpec(): Promise<string> {
+  const { data, error } = await supabase
+    .from('site_state')
+    .select('spec')
+    .eq('id', 'main')
+    .single()
+
+  if (error || !data || !data.spec) {
+    // Seed the default spec
+    await supabase.from('site_state').upsert({
+      id: 'main',
+      spec: DEFAULT_SPEC,
+      updated_at: new Date().toISOString(),
+    })
+    return DEFAULT_SPEC
+  }
+
+  return data.spec as string
 }
 
 export async function createProposalBranch(
@@ -79,7 +126,7 @@ export async function mergeBranch(branch: string): Promise<Record<string, string
 
   const { data: proposal } = await supabase
     .from('proposals')
-    .select('files')
+    .select('files, spec')
     .eq('id', proposalId)
     .single()
 
@@ -89,20 +136,29 @@ export async function mergeBranch(branch: string): Promise<Record<string, string
 
   const newFiles = proposal.files as Record<string, string>
 
-  // Update main state
-  await supabase.from('site_state').update({
+  // Update main state including spec
+  const update: Record<string, unknown> = {
     files: newFiles,
     updated_at: new Date().toISOString(),
-  }).eq('id', 'main')
+  }
+  if (proposal.spec) {
+    update.spec = proposal.spec
+  }
+  await supabase.from('site_state').update(update).eq('id', 'main')
 
   return newFiles
 }
 
 export async function revertToFiles(
   files: Record<string, string>,
+  spec?: string,
 ): Promise<void> {
-  await supabase.from('site_state').update({
+  const update: Record<string, unknown> = {
     files,
     updated_at: new Date().toISOString(),
-  }).eq('id', 'main')
+  }
+  if (spec !== undefined) {
+    update.spec = spec
+  }
+  await supabase.from('site_state').update(update).eq('id', 'main')
 }

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
-import { readFiles, hashFiles } from '@/lib/git'
-import { rebaseProposal } from '@/lib/agent'
+import { readSpec, hashSpec } from '@/lib/git'
+import { rebaseSpec, renderCode } from '@/lib/agent'
 
 export const dynamic = 'force-dynamic'
 
@@ -32,26 +32,28 @@ export async function POST(req: NextRequest) {
     const votesNeeded = proposal.votes_needed || 3
 
     if (votes.length >= votesNeeded) {
-      // Check if main has changed since proposal was created (stale base)
-      const currentMainFiles = await readFiles()
-      const currentHash = hashFiles(currentMainFiles)
-      const proposalBaseHash = proposal.base_files_hash || ''
+      const currentMainSpec = await readSpec()
+      const currentSpecHash = hashSpec(currentMainSpec)
+      const proposalBaseSpecHash = proposal.base_spec_hash || ''
 
       let finalFiles = proposal.files as Record<string, string>
+      let finalSpec = (proposal.spec as string) || ''
 
-      if (proposalBaseHash && currentHash !== proposalBaseHash) {
-        // Main has diverged — rebase the proposal using the LLM
+      // Check staleness by spec hash
+      if (proposalBaseSpecHash && currentSpecHash !== proposalBaseSpecHash && finalSpec) {
+        // Spec has diverged — rebase
         const originalPrompt = proposal.user_prompt || proposal.description
-        const { files: rebasedChanges } = await rebaseProposal(
-          currentMainFiles,
-          finalFiles,
+        const { spec: rebasedSpec } = await rebaseSpec(
+          currentMainSpec,
+          finalSpec,
           originalPrompt
         )
-        finalFiles = { ...currentMainFiles, ...rebasedChanges }
+        finalSpec = rebasedSpec
+        finalFiles = await renderCode(finalSpec)
 
-        // Update the proposal's files with rebased version
         await supabase.from('proposals').update({
           files: finalFiles,
+          spec: finalSpec,
           votes,
           status: 'approved',
         }).eq('id', proposalId)
@@ -59,11 +61,15 @@ export async function POST(req: NextRequest) {
         await supabase.from('proposals').update({ votes, status: 'approved' }).eq('id', proposalId)
       }
 
-      // Write final files to main
-      await supabase.from('site_state').update({
+      // Write final files and spec to main
+      const update: Record<string, unknown> = {
         files: finalFiles,
         updated_at: new Date().toISOString(),
-      }).eq('id', 'main')
+      }
+      if (finalSpec) {
+        update.spec = finalSpec
+      }
+      await supabase.from('site_state').update(update).eq('id', 'main')
 
       const fullProposal = {
         id: proposal.id,
@@ -74,12 +80,20 @@ export async function POST(req: NextRequest) {
         branch: proposal.branch,
         files: finalFiles,
         baseFilesHash: proposal.base_files_hash || '',
+        spec: finalSpec,
+        baseSpecHash: proposalBaseSpecHash,
         status: 'approved' as const,
         votes,
         votesNeeded,
       }
 
-      return NextResponse.json({ votes, merged: true, proposal: fullProposal, newFiles: finalFiles })
+      return NextResponse.json({
+        votes,
+        merged: true,
+        proposal: fullProposal,
+        newFiles: finalFiles,
+        newSpec: finalSpec,
+      })
     }
 
     // Just save the vote

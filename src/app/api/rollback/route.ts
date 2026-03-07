@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { readFiles, revertToFiles, DEFAULT_FILES } from '@/lib/git'
+import { readFiles, revertToFiles, DEFAULT_FILES, DEFAULT_SPEC } from '@/lib/git'
 import { supabase } from '@/lib/supabase'
 
 export const dynamic = 'force-dynamic'
@@ -28,15 +28,18 @@ export async function POST(req: NextRequest) {
     // Filter out the proposal being rolled back, then take the most recent remaining
     const previousApproved = approvedHistory?.filter((p: { id: string }) => p.id !== proposalId)[0]
     let revertFiles: Record<string, string>
+    let revertSpec: string
 
     if (previousApproved) {
       revertFiles = previousApproved.files as Record<string, string>
+      revertSpec = (previousApproved.spec as string) || DEFAULT_SPEC
     } else {
       // No previous approved proposal — revert to default
       revertFiles = DEFAULT_FILES
+      revertSpec = DEFAULT_SPEC
     }
 
-    await revertToFiles(revertFiles)
+    await revertToFiles(revertFiles, revertSpec)
     await supabase.from('proposals').update({ status: 'rolled_back' }).eq('id', proposalId)
 
     const newFiles = await readFiles()
@@ -50,12 +53,14 @@ export async function POST(req: NextRequest) {
       branch: proposal.branch,
       files: proposal.files,
       baseFilesHash: proposal.base_files_hash || '',
+      spec: proposal.spec || undefined,
+      baseSpecHash: proposal.base_spec_hash || undefined,
       status: 'rolled_back' as const,
       votes: proposal.votes || [],
       votesNeeded: proposal.votes_needed || 3,
     }
 
-    return NextResponse.json({ newFiles, proposal: fullProposal })
+    return NextResponse.json({ newFiles, newSpec: revertSpec, proposal: fullProposal })
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Unknown error'
     console.error('Rollback error:', message)

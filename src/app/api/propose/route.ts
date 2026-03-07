@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { readFiles, hashFiles } from '@/lib/git'
-import { generateProposal } from '@/lib/agent'
+import { readFiles, readSpec, hashSpec } from '@/lib/git'
+import { editSpec, renderCode } from '@/lib/agent'
 import { supabase } from '@/lib/supabase'
 import { v4 as uuid } from 'uuid'
 import type { Proposal } from '@/lib/types'
@@ -15,10 +15,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing userPrompt or userId' }, { status: 400 })
     }
 
-    const currentFiles = await readFiles()
-    const baseFilesHash = hashFiles(currentFiles)
-    const { description, files } = await generateProposal(currentFiles, userPrompt)
-    const proposalFiles = { ...currentFiles, ...files }
+    // Step 1: Read current state (parallel)
+    const [currentFiles, currentSpec] = await Promise.all([readFiles(), readSpec()])
+    const baseSpecHash = hashSpec(currentSpec)
+
+    // Step 2: Edit the spec
+    const { description, spec: updatedSpec } = await editSpec(currentSpec, userPrompt)
+
+    // Step 3: Render code from the updated spec
+    const proposalFiles = await renderCode(updatedSpec)
 
     const id = uuid()
     const branch = `proposal/${id}`
@@ -31,7 +36,9 @@ export async function POST(req: NextRequest) {
       timestamp: Date.now(),
       branch,
       files: proposalFiles,
-      baseFilesHash,
+      baseFilesHash: '', // no longer primary; kept for compat
+      spec: updatedSpec,
+      baseSpecHash,
       status: 'pending',
       votes: [],
       votesNeeded: 3,
@@ -45,7 +52,9 @@ export async function POST(req: NextRequest) {
       timestamp: proposal.timestamp,
       branch,
       files: proposalFiles,
-      base_files_hash: baseFilesHash,
+      base_files_hash: '',
+      spec: updatedSpec,
+      base_spec_hash: baseSpecHash,
       status: 'pending',
       votes: [],
       votes_needed: 3,

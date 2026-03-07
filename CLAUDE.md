@@ -17,19 +17,28 @@ A multiplayer platform where social movements collaboratively edit a live websit
 
 ### Flow
 1. User types natural language change request in bottom bar
-2. `POST /api/propose` reads current `main` files, calls LLM, creates git branch, saves to Supabase
+2. `POST /api/propose` reads current spec + files, calls `editSpec()` to update the markdown spec, then `renderCode()` to generate React files from it. Saves both to Supabase.
 3. Proposal broadcasts to all clients via PartyKit
-4. Users vote; at 3 votes, PartyKit server calls `POST /api/merge`
-5. Branch merges to main, all Sandpack previews hot-reload with new files
-6. Any merged change can be rolled back via `POST /api/rollback`
+4. Users vote; at 3 votes, `POST /api/vote` merges (rebasing the spec if main has diverged)
+5. Spec + files merge to main, all Sandpack previews hot-reload with new files
+6. Any merged change can be rolled back via `POST /api/rollback` (restores both spec and files)
+
+### Spec Layer
+The site's state is defined by a **high-level markdown spec** (stored in `site_state.spec`). User prompts edit the spec via `editSpec()`, then `renderCode()` generates all React files from it. This gives a single human-readable source of truth and makes rebases cleaner (reconcile descriptions, not code).
+
+- `editSpec(currentSpec, userPrompt)` → updated spec + description
+- `renderCode(spec)` → complete file set
+- `rebaseSpec(mainSpec, proposalSpec, originalPrompt)` → reconciled spec
+- Staleness is checked via `baseSpecHash` (SHA256 of spec at proposal creation)
+- PreviewModal shows a tabbed view: "Spec Changes" (line diff) and "Preview" (Sandpack)
 
 ### Key Files
-- `src/lib/git.ts` — isomorphic-git abstraction (readFiles, createProposalBranch, mergeBranch, revertToFiles)
-- `src/lib/agent.ts` — OpenRouter LLM call and response parsing
+- `src/lib/git.ts` — storage abstraction (readFiles, readSpec, hashSpec, mergeBranch, revertToFiles, DEFAULT_SPEC)
+- `src/lib/agent.ts` — LLM functions: editSpec, renderCode, rebaseSpec (+ legacy generateProposal, rebaseProposal)
 - `src/lib/supabase.ts` — Supabase client with in-memory fallback
 - `src/lib/types.ts` — shared Proposal, ClientMessage, ServerBroadcast types
 - `src/app/api/propose/route.ts` — proposal creation endpoint
-- `src/app/api/merge/route.ts` — branch merge endpoint
+- `src/app/api/vote/route.ts` — voting + merge endpoint (spec-aware rebase)
 - `src/app/api/rollback/route.ts` — revert endpoint
 - `party/index.ts` — PartyKit server (single room, handles vote counting and merge triggers)
 - `src/components/LivePage.tsx` — Sandpack preview of current main
@@ -50,6 +59,20 @@ npm run dev:all  # Next.js on :3000, PartyKit on :1999
 
 ## Environment Variables
 See `.env.local` — needs `OPENROUTER_API_KEY`, `NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `NEXT_PUBLIC_PARTYKIT_HOST`.
+
+## Database Migrations (Supabase CLI)
+
+The project is linked to Supabase via the CLI. Schema changes are managed through SQL migration files:
+
+```bash
+# Create a new migration
+supabase migration new <name>
+
+# Apply migrations to the remote database
+supabase db push
+```
+
+Migration files live in `supabase/migrations/`. When making schema changes, create a migration file and run `supabase db push` — no need to use the Supabase dashboard.
 
 ## Workflow Rules
 

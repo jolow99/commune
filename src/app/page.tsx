@@ -57,6 +57,7 @@ export default function Home() {
     setUserId(getOrCreateUserId())
   }, [])
   const [liveFiles, setLiveFiles] = useState<Record<string, string>>(DEFAULT_FILES)
+  const [liveSpec, setLiveSpec] = useState('')
   const [pending, setPending] = useState<Proposal[]>([])
   const [history, setHistory] = useState<Proposal[]>([])
   const [previewProposal, setPreviewProposal] = useState<Proposal | null>(null)
@@ -71,6 +72,7 @@ export default function Home() {
       .then((res) => res.json())
       .then((data) => {
         if (data.liveFiles && Object.keys(data.liveFiles).length > 0) setLiveFiles(data.liveFiles)
+        if (data.liveSpec) setLiveSpec(data.liveSpec)
         if (data.pending) setPending(data.pending)
         if (data.history) setHistory(data.history)
       })
@@ -101,6 +103,13 @@ export default function Home() {
           setPending((prev) => prev.filter((p) => p.id !== msg.proposal.id))
           setHistory((prev) => [msg.proposal, ...prev.filter(h => h.id !== msg.proposal.id)])
           setLiveFiles(msg.newFiles)
+          if (msg.newSpec) setLiveSpec(msg.newSpec)
+          break
+        case 'rollback':
+          setPending((prev) => prev.filter((p) => p.id !== msg.proposal.id))
+          setHistory((prev) => [msg.proposal, ...prev.filter(h => h.id !== msg.proposal.id)])
+          setLiveFiles(msg.newFiles)
+          if (msg.newSpec) setLiveSpec(msg.newSpec)
           break
       }
     },
@@ -160,10 +169,11 @@ export default function Home() {
           setPending((prev) => prev.filter((p) => p.id !== proposalId))
           setHistory((prev) => [data.proposal, ...prev])
           setLiveFiles(data.newFiles)
+          if (data.newSpec) setLiveSpec(data.newSpec)
           setMergingProposalId(null)
           ws.send(JSON.stringify({
             type: 'notify', event: 'merged',
-            proposal: data.proposal, newFiles: data.newFiles,
+            proposal: data.proposal, newFiles: data.newFiles, newSpec: data.newSpec,
           }))
         } else {
           setPending((prev) =>
@@ -205,10 +215,11 @@ export default function Home() {
         setPending((prev) => prev.filter((p) => p.id !== proposalId))
         setHistory((prev) => [data.proposal, ...prev.filter(h => h.id !== proposalId)])
         setLiveFiles(data.newFiles)
+        if (data.newSpec) setLiveSpec(data.newSpec)
         // Notify other clients
         ws.send(JSON.stringify({
           type: 'notify', event: 'rollback',
-          proposal: data.proposal, newFiles: data.newFiles,
+          proposal: data.proposal, newFiles: data.newFiles, newSpec: data.newSpec,
         }))
       } catch (err) {
         console.error('Rollback error:', err)
@@ -278,6 +289,7 @@ export default function Home() {
         {previewProposal && (
           <PreviewModal
             proposal={previewProposal}
+            currentSpec={liveSpec}
             onClose={() => setPreviewProposal(null)}
           />
         )}

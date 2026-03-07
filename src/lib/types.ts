@@ -7,6 +7,8 @@ export interface Proposal {
   branch: string
   files: Record<string, string>
   baseFilesHash: string
+  spec?: string
+  baseSpecHash?: string
   status: 'pending' | 'approved' | 'rolled_back'
   votes: string[]
   votesNeeded: number
@@ -16,11 +18,12 @@ export interface Proposal {
 export type ClientMessage =
   | { type: 'notify'; event: 'proposal_created'; proposal: Proposal }
   | { type: 'notify'; event: 'voted'; proposalId: string; votes: string[] }
-  | { type: 'notify'; event: 'merged'; proposal: Proposal; newFiles: Record<string, string> }
-  | { type: 'notify'; event: 'rollback'; proposal: Proposal; newFiles: Record<string, string> }
+  | { type: 'notify'; event: 'merged'; proposal: Proposal; newFiles: Record<string, string>; newSpec?: string }
+  | { type: 'notify'; event: 'rollback'; proposal: Proposal; newFiles: Record<string, string>; newSpec?: string }
 
 // PartyKit broadcasts to all other clients
 export type ServerBroadcast =
   | { type: 'proposal_created'; proposal: Proposal }
   | { type: 'proposal_voted'; proposalId: string; votes: string[] }
-  | { type: 'proposal_merged'; proposal: Proposal; newFiles: Record<string, string> }
+  | { type: 'proposal_merged'; proposal: Proposal; newFiles: Record<string, string>; newSpec?: string }
+  | { type: 'rollback'; proposal: Proposal; newFiles: Record<string, string>; newSpec?: string }

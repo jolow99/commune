@@ -34,6 +34,8 @@ create table proposals (
   votes_needed int default 3,
   user_prompt text,
   base_files_hash text,
+  spec text,
+  base_spec_hash text,
   created_at timestamptz default now()
 );
 ```
@@ -58,32 +60,33 @@ Open http://localhost:3000 in two browser windows to test multiplayer.
 ## How It Works
 
 1. User types a natural language change request
-2. LLM (via OpenRouter) generates updated React file(s)
-3. Changes are committed to a new git branch (isomorphic-git)
-4. Proposal appears live to all connected users via PartyKit
+2. `editSpec()` updates a high-level markdown spec describing what the site should be
+3. `renderCode()` generates all React files from the updated spec
+4. Proposal (with spec + files) appears live to all connected users via PartyKit
 5. When 3 users vote to approve, the branch merges to main
 6. The live page hot-reloads in all browsers via Sandpack
 
+## Spec Layer
+
+The site's state is defined by a **markdown spec** — a human-readable description of what each section of the site looks like. User prompts edit the spec, then a second LLM call renders code from it. This gives a single source of truth and makes conflict resolution cleaner.
+
+- **Propose**: `editSpec(currentSpec, userPrompt)` → updated spec, then `renderCode(spec)` → files
+- **Rebase**: When main has diverged, `rebaseSpec()` reconciles the specs, then `renderCode()` regenerates files
+- **Rollback**: Restores both the spec and files from the previous approved proposal
+
+Each proposal stores a `base_spec_hash` for staleness detection. The PreviewModal shows a tabbed view with "Spec Changes" (line diff) and "Preview" (Sandpack visual).
+
 ## Rebase on Merge
 
-When multiple proposals are created around the same time, they all branch from the same base state. If one merges first, the others become stale — their files reflect an outdated main. Merging them as-is would overwrite the first merge's changes.
+When multiple proposals are created around the same time, they branch from the same spec. If one merges first, the others become stale. The vote endpoint detects this via `base_spec_hash` and calls `rebaseSpec()` to reconcile the proposed spec with the current main spec, then `renderCode()` to regenerate files.
 
-To handle this, each proposal stores a `base_files_hash` — a hash of main at the time the proposal was created. When a proposal reaches the vote threshold:
-
-1. The vote endpoint compares `base_files_hash` against the current main hash
-2. If they match, the proposal merges as-is (no extra cost)
-3. If main has diverged, the LLM is called with three inputs: the current main files, the proposal's generated files, and the original user prompt. It adapts the proposed change to work with the new base, preserving both the existing main state and the intent of the proposal
-4. The rebased files replace the proposal's original files, then merge to main
-
-This is lighter than regenerating from scratch — the LLM has the existing proposal code as a starting point and only needs to reconcile the differences.
-
-Previews are marked as approximate in the UI since the final merged result may differ from what was previewed if a rebase occurs. The original user prompt is displayed alongside the LLM-generated description so voters can understand the intent regardless of what the preview shows.
+Previews are marked as approximate since the final merged result may differ if a rebase occurs.
 
 Key files:
 
-- `src/lib/agent.ts` — `rebaseProposal()` function with the reconciliation prompt
-- `src/lib/git.ts` — `hashFiles()` for deterministic state comparison
-- `src/app/api/vote/route.ts` — staleness detection and rebase trigger
+- `src/lib/agent.ts` — `editSpec()`, `renderCode()`, `rebaseSpec()`
+- `src/lib/git.ts` — `readSpec()`, `hashSpec()`, `DEFAULT_SPEC`
+- `src/app/api/vote/route.ts` — staleness detection and spec-aware rebase
 
 ## Deploy PartyKit
 

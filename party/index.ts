@@ -21,10 +21,10 @@ export default class CommuneServer implements Server {
         broadcast = { type: 'proposal_voted', proposalId: msg.proposalId, votes: msg.votes }
         break
       case 'merged':
-        broadcast = { type: 'proposal_merged', proposal: msg.proposal, newFiles: msg.newFiles }
+        broadcast = { type: 'proposal_merged', proposal: msg.proposal, newFiles: msg.newFiles, newSpec: msg.newSpec }
         break
       case 'rollback':
-        broadcast = { type: 'proposal_merged', proposal: msg.proposal, newFiles: msg.newFiles }
+        broadcast = { type: 'rollback', proposal: msg.proposal, newFiles: msg.newFiles, newSpec: msg.newSpec }
         break
       default:
         return
