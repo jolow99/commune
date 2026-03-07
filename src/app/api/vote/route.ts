@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { readSpec, hashSpec } from '@/lib/git'
 import { rebaseSpec, renderCode } from '@/lib/agent'
+import { syncToGitHub } from '@/lib/github'
 
 export const dynamic = 'force-dynamic'
 
@@ -56,9 +57,10 @@ export async function POST(req: NextRequest) {
           spec: finalSpec,
           votes,
           status: 'approved',
+          merged_at: new Date().toISOString(),
         }).eq('id', proposalId)
       } else {
-        await supabase.from('proposals').update({ votes, status: 'approved' }).eq('id', proposalId)
+        await supabase.from('proposals').update({ votes, status: 'approved', merged_at: new Date().toISOString() }).eq('id', proposalId)
       }
 
       // Write final files and spec to main
@@ -70,6 +72,12 @@ export async function POST(req: NextRequest) {
         update.spec = finalSpec
       }
       await supabase.from('site_state').update(update).eq('id', 'main')
+
+      syncToGitHub({
+        files: finalFiles,
+        spec: finalSpec,
+        commitMessage: `[Proposal #${proposalId}] ${proposal.user_prompt || proposal.description}\n\nVoters: ${votes.join(', ')}`,
+      }).catch(err => console.error('GitHub sync failed:', err))
 
       const fullProposal = {
         id: proposal.id,

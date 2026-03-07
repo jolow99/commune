@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { readFiles, revertToFiles, DEFAULT_FILES, DEFAULT_SPEC } from '@/lib/git'
 import { supabase } from '@/lib/supabase'
+import { syncToGitHub } from '@/lib/github'
 
 export const dynamic = 'force-dynamic'
 
@@ -41,6 +42,12 @@ export async function POST(req: NextRequest) {
 
     await revertToFiles(revertFiles, revertSpec)
     await supabase.from('proposals').update({ status: 'rolled_back' }).eq('id', proposalId)
+
+    syncToGitHub({
+      files: revertFiles,
+      spec: revertSpec,
+      commitMessage: `[Rollback] Reverted proposal #${proposalId}`,
+    }).catch(err => console.error('GitHub sync failed:', err))
 
     const newFiles = await readFiles()
 

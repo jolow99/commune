@@ -17,6 +17,11 @@ OPENROUTER_API_KEY=your-key
 NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_SERVICE_KEY=your-service-key
 NEXT_PUBLIC_PARTYKIT_HOST=127.0.0.1:1999
+
+# Optional: GitHub audit log
+GITHUB_TOKEN=ghp_your-token
+GITHUB_REPO=owner/repo
+GITHUB_BRANCH=main
 ```
 
 ### Supabase Schema
@@ -87,6 +92,28 @@ Key files:
 - `src/lib/agent.ts` — `editSpec()`, `renderCode()`, `rebaseSpec()`
 - `src/lib/git.ts` — `readSpec()`, `hashSpec()`, `DEFAULT_SPEC`
 - `src/app/api/vote/route.ts` — staleness detection and spec-aware rebase
+
+## GitHub Audit Log
+
+When `GITHUB_TOKEN` and `GITHUB_REPO` are set, every merge and rollback is synced as a commit to the configured GitHub repository. This creates an append-only audit trail. The sync is fire-and-forget — failures are logged but never block the merge/rollback.
+
+Files committed include all site files plus `SPEC.md` (the current spec). Commit messages include the proposal ID, user prompt, and voter list.
+
+## API Endpoints
+
+### `GET /api/history`
+
+Browse merged proposals in reverse chronological order.
+
+- `limit` (default 20, max 100) — number of proposals to return
+- `cursor` (ISO timestamp) — for pagination, use `nextCursor` from previous response
+
+### `POST /api/diff`
+
+Compare files and spec between two proposals (or current state).
+
+- Body: `{ "from": "<proposal-id>", "to": "current" }` — each can be a proposal ID or `"current"`
+- Returns per-file diffs (added/removed/modified) and spec before/after
 
 ## Deploy PartyKit
 
