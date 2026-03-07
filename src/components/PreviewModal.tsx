@@ -29,8 +29,6 @@ function toSandpackFiles(files: Record<string, string>) {
 function computeLineDiff(oldText: string, newText: string) {
   const oldLines = oldText.split('\n')
   const newLines = newText.split('\n')
-  const result: { type: 'same' | 'added' | 'removed'; text: string }[] = []
-
   // Simple LCS-based diff
   const m = oldLines.length
   const n = newLines.length

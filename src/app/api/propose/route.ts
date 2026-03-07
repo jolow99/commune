@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { readFiles, readSpec, hashSpec } from '@/lib/git'
+import { readSpec, hashSpec } from '@/lib/git'
 import { editSpec, renderCode } from '@/lib/agent'
 import { supabase } from '@/lib/supabase'
 import { v4 as uuid } from 'uuid'
@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Step 1: Read current state (parallel)
-    const [currentFiles, currentSpec] = await Promise.all([readFiles(), readSpec()])
+    const currentSpec = await readSpec()
     const baseSpecHash = hashSpec(currentSpec)
 
     // Step 2: Edit the spec
