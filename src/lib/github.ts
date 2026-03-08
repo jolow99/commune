@@ -57,9 +57,8 @@ export async function syncToGitHub(opts: {
       })
     )
 
-    // 4. Create tree
+    // 4. Create tree (no base_tree — exact snapshot of current state)
     const tree = await githubFetch('/git/trees', 'POST', {
-      base_tree: baseTreeSha,
       tree: blobEntries,
     })
 
