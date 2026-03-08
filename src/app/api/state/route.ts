@@ -35,7 +35,8 @@ export async function GET() {
     // Clean up stuck generating proposals (older than 2 minutes)
     const twoMinutesAgo = Date.now() - 2 * 60 * 1000
     for (const p of all) {
-      if (p.status === 'generating' && p.timestamp < twoMinutesAgo) {
+      const ts = typeof p.timestamp === 'string' ? new Date(p.timestamp).getTime() : p.timestamp
+      if (p.status === 'generating' && ts < twoMinutesAgo) {
         p.errorMessage = 'Generation timed out'
         await supabase
           .from('proposals')

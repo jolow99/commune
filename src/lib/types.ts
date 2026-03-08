@@ -3,7 +3,7 @@ export interface Proposal {
   description: string
   userPrompt: string
   author: string
-  timestamp: number
+  timestamp: number | string
   branch: string
   files: Record<string, string>
   baseFilesHash: string

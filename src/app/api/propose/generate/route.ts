@@ -4,7 +4,7 @@ import { supabase } from '@/lib/supabase'
 import type { Proposal } from '@/lib/types'
 
 export const dynamic = 'force-dynamic'
-export const maxDuration = 60
+export const maxDuration = 300
 
 async function broadcastToPartyKit(body: Record<string, unknown>) {
   const host = process.env.NEXT_PUBLIC_PARTYKIT_HOST || '127.0.0.1:1999'

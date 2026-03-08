@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
 
     // Insert a new rollback entry (append-only — original proposal is NOT mutated)
     const rollbackId = crypto.randomUUID()
-    const now = Date.now()
+    const now = new Date().toISOString()
     const rollbackDescription = `Rolled back: ${proposal.description}`
 
     const { error: insertError } = await supabase.from('proposals').insert({

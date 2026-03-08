@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
 
     const id = uuid()
     const branch = `proposal/${id}`
-    const timestamp = Date.now()
+    const timestamp = new Date().toISOString()
 
     // Insert skeleton row with generating status
     await supabase.from('proposals').insert({
