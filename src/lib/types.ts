@@ -9,9 +9,11 @@ export interface Proposal {
   baseFilesHash: string
   spec?: string
   baseSpecHash?: string
-  status: 'pending' | 'approved' | 'rolled_back'
+  status: 'pending' | 'approved'
   votes: string[]
   votesNeeded: number
+  type: 'proposal' | 'rollback'
+  revertsId?: string
 }
 
 // Client sends notifications to PartyKit after API calls succeed

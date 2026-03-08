@@ -27,6 +27,8 @@ export async function GET() {
       status: p.status,
       votes: p.votes || [],
       votesNeeded: p.votes_needed || 3,
+      type: p.type || 'proposal',
+      revertsId: p.reverts_id || undefined,
     }))
 
     const pending = all.filter((p) => p.status === 'pending')

@@ -106,8 +106,10 @@ export default function Home() {
           if (msg.newSpec) setLiveSpec(msg.newSpec)
           break
         case 'rollback':
-          setPending((prev) => prev.filter((p) => p.id !== msg.proposal.id))
-          setHistory((prev) => [msg.proposal, ...prev.filter(h => h.id !== msg.proposal.id)])
+          setHistory((prev) => {
+            if (prev.some(h => h.id === msg.proposal.id)) return prev
+            return [msg.proposal, ...prev]
+          })
           setLiveFiles(msg.newFiles)
           if (msg.newSpec) setLiveSpec(msg.newSpec)
           break
@@ -211,9 +213,8 @@ export default function Home() {
         const data = await res.json()
         if (data.error) return
 
-        // Update local state
-        setPending((prev) => prev.filter((p) => p.id !== proposalId))
-        setHistory((prev) => [data.proposal, ...prev.filter(h => h.id !== proposalId)])
+        // Prepend new rollback entry (don't modify existing entries)
+        setHistory((prev) => [data.proposal, ...prev])
         setLiveFiles(data.newFiles)
         if (data.newSpec) setLiveSpec(data.newSpec)
         // Notify other clients

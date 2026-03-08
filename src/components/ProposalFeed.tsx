@@ -104,17 +104,15 @@ export default function ProposalFeed({
           >
             <p className="text-sm text-slate-300 mb-1 line-clamp-2">{p.description}</p>
             <div className="flex items-center justify-between">
-              <span className={`text-xs ${p.status === 'approved' ? 'text-green-400' : 'text-orange-400'}`}>
-                {p.status === 'approved' ? 'Merged' : 'Rolled back'}
+              <span className={`text-xs ${p.type === 'rollback' ? 'text-orange-400' : 'text-green-400'}`}>
+                {p.type === 'rollback' ? 'Rollback' : 'Merged'}
               </span>
-              {p.status === 'approved' && (
-                <button
-                  onClick={() => onRollback(p.id)}
-                  className="text-xs px-2 py-1 bg-red-900/30 hover:bg-red-900/50 rounded text-red-400 transition-colors"
-                >
-                  Rollback
-                </button>
-              )}
+              <button
+                onClick={() => onRollback(p.id)}
+                className="text-xs px-2 py-1 bg-red-900/30 hover:bg-red-900/50 rounded text-red-400 transition-colors"
+              >
+                Rollback
+              </button>
             </div>
           </div>
         ))}

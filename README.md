@@ -41,6 +41,8 @@ create table proposals (
   base_files_hash text,
   spec text,
   base_spec_hash text,
+  type text not null default 'proposal',
+  reverts_id text,
   created_at timestamptz default now()
 );
 ```
@@ -77,7 +79,7 @@ The site's state is defined by a **markdown spec** — a human-readable descript
 
 - **Propose**: `editSpec(currentSpec, userPrompt)` → updated spec, then `renderCode(spec)` → files
 - **Rebase**: When main has diverged, `rebaseSpec()` reconciles the specs, then `renderCode()` regenerates files
-- **Rollback**: Restores both the spec and files from the previous approved proposal
+- **Rollback**: Append-only — inserts a new `rollback` entry that restores spec and files from the previous approved proposal. The original proposal stays unchanged. Rollbacks can themselves be rolled back.
 
 Each proposal stores a `base_spec_hash` for staleness detection. The PreviewModal shows a tabbed view with "Spec Changes" (line diff) and "Preview" (Sandpack visual).
 
