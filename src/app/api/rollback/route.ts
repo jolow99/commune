@@ -43,11 +43,11 @@ export async function POST(req: NextRequest) {
     await revertToFiles(revertFiles, revertSpec)
     await supabase.from('proposals').update({ status: 'rolled_back' }).eq('id', proposalId)
 
-    syncToGitHub({
+    await syncToGitHub({
       files: revertFiles,
       spec: revertSpec,
       commitMessage: `[Rollback] Reverted proposal #${proposalId}`,
-    }).catch(err => console.error('GitHub sync failed:', err))
+    })
 
     const newFiles = await readFiles()
 

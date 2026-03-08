@@ -73,11 +73,11 @@ export async function POST(req: NextRequest) {
       }
       await supabase.from('site_state').update(update).eq('id', 'main')
 
-      syncToGitHub({
+      await syncToGitHub({
         files: finalFiles,
         spec: finalSpec,
         commitMessage: `[Proposal #${proposalId}] ${proposal.user_prompt || proposal.description}\n\nVoters: ${votes.join(', ')}`,
-      }).catch(err => console.error('GitHub sync failed:', err))
+      })
 
       const fullProposal = {
         id: proposal.id,
