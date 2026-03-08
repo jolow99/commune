@@ -36,11 +36,7 @@ export async function syncToGitHub(opts: {
     const ref = await githubFetch(`/git/ref/heads/${branch}`, 'GET')
     const parentCommitSha: string = ref.object.sha
 
-    // 2. Get base tree
-    const parentCommit = await githubFetch(`/git/commits/${parentCommitSha}`, 'GET')
-    const baseTreeSha: string = parentCommit.tree.sha
-
-    // 3. Create blobs for all files + SPEC.md
+    // 2. Create blobs for all files + SPEC.md
     const allFiles: Record<string, string> = { ...opts.files, 'SPEC.md': opts.spec }
     const blobEntries = await Promise.all(
       Object.entries(allFiles).map(async ([path, content]) => {

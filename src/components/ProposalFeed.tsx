@@ -13,6 +13,18 @@ interface ProposalFeedProps {
   onPreview: (proposal: Proposal) => void
 }
 
+function timeAgo(epochMs: number): string {
+  const seconds = Math.floor((Date.now() - epochMs) / 1000)
+  if (seconds < 60) return 'just now'
+  const minutes = Math.floor(seconds / 60)
+  if (minutes < 60) return `${minutes}m ago`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `${hours}h ago`
+  const days = Math.floor(hours / 24)
+  if (days < 30) return `${days}d ago`
+  return new Date(epochMs).toLocaleDateString()
+}
+
 function VoteBar({ votes, needed }: { votes: number; needed: number }) {
   const filled = Math.min(votes, needed)
   return (
@@ -57,34 +69,51 @@ export default function ProposalFeed({
               exit={{ backgroundColor: '#22c55e33', opacity: 0, x: -20 }}
               className="mx-3 mb-2 p-3 bg-slate-800 rounded-lg border border-slate-700"
             >
-              <p className="text-xs text-indigo-400 mb-1 line-clamp-2 italic">&ldquo;{p.userPrompt}&rdquo;</p>
-              <p className="text-sm text-white mb-2 line-clamp-2">{p.description}</p>
-              <div className="flex items-center gap-2 mb-2">
-                <p className="text-xs text-slate-500">by {p.author.slice(0, 8)}</p>
-                <span className="text-xs text-amber-500/70">&middot; Preview may change on merge</span>
-              </div>
-              <VoteBar votes={p.votes.length} needed={p.votesNeeded} />
-              {mergingProposalId === p.id ? (
-                <div className="mt-2 flex items-center gap-2">
-                  <div className="w-3 h-3 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
-                  <span className="text-xs text-indigo-400">Merging &amp; rebasing...</span>
-                </div>
+              {p.status === 'generating' ? (
+                <>
+                  <p className="text-xs text-indigo-400 mb-1 line-clamp-2 italic">&ldquo;{p.userPrompt}&rdquo;</p>
+                  {p.errorMessage ? (
+                    <p className="text-xs text-red-400 mt-1">{p.errorMessage}</p>
+                  ) : (
+                    <div className="flex items-center gap-2 mt-2">
+                      <div className="w-3 h-3 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
+                      <span className="text-xs text-indigo-400">Generating...</span>
+                    </div>
+                  )}
+                  <p className="text-xs text-slate-500 mt-1">by {p.author.slice(0, 8)} &middot; {timeAgo(p.timestamp)}</p>
+                </>
               ) : (
-                <div className="flex gap-2 mt-2">
-                  <button
-                    onClick={() => onPreview(p)}
-                    className="text-xs px-3 py-1 bg-slate-700 hover:bg-slate-600 rounded text-slate-300 transition-colors"
-                  >
-                    Preview
-                  </button>
-                  <button
-                    onClick={() => onVote(p.id)}
-                    disabled={p.votes.includes(userId)}
-                    className="text-xs px-3 py-1 bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-700 disabled:text-slate-500 rounded text-white transition-colors"
-                  >
-                    {p.votes.includes(userId) ? 'Voted' : 'Vote'}
-                  </button>
-                </div>
+                <>
+                  <p className="text-xs text-indigo-400 mb-1 line-clamp-2 italic">&ldquo;{p.userPrompt}&rdquo;</p>
+                  <p className="text-sm text-white mb-2 line-clamp-2">{p.description}</p>
+                  <div className="flex items-center gap-2 mb-2">
+                    <p className="text-xs text-slate-500">by {p.author.slice(0, 8)} &middot; {timeAgo(p.timestamp)}</p>
+                    <span className="text-xs text-amber-500/70">&middot; Preview may change on merge</span>
+                  </div>
+                  <VoteBar votes={p.votes.length} needed={p.votesNeeded} />
+                  {mergingProposalId === p.id ? (
+                    <div className="mt-2 flex items-center gap-2">
+                      <div className="w-3 h-3 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
+                      <span className="text-xs text-indigo-400">Merging &amp; rebasing...</span>
+                    </div>
+                  ) : (
+                    <div className="flex gap-2 mt-2">
+                      <button
+                        onClick={() => onPreview(p)}
+                        className="text-xs px-3 py-1 bg-slate-700 hover:bg-slate-600 rounded text-slate-300 transition-colors"
+                      >
+                        Preview
+                      </button>
+                      <button
+                        onClick={() => onVote(p.id)}
+                        disabled={p.votes.includes(userId)}
+                        className="text-xs px-3 py-1 bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-700 disabled:text-slate-500 rounded text-white transition-colors"
+                      >
+                        {p.votes.includes(userId) ? 'Voted' : 'Vote'}
+                      </button>
+                    </div>
+                  )}
+                </>
               )}
             </motion.div>
           ))}
@@ -102,17 +131,29 @@ export default function ProposalFeed({
             key={p.id}
             className="mx-3 mb-2 p-3 bg-slate-800/50 rounded-lg border border-slate-700/50"
           >
+            {p.userPrompt && (
+              <p className="text-xs text-indigo-400 mb-1 line-clamp-1 italic">&ldquo;{p.userPrompt}&rdquo;</p>
+            )}
             <p className="text-sm text-slate-300 mb-1 line-clamp-2">{p.description}</p>
+            <p className="text-xs text-slate-500 mb-2">by {p.author.slice(0, 8)} &middot; {timeAgo(p.timestamp)}</p>
             <div className="flex items-center justify-between">
               <span className={`text-xs ${p.type === 'rollback' ? 'text-orange-400' : 'text-green-400'}`}>
                 {p.type === 'rollback' ? 'Rollback' : 'Merged'}
               </span>
-              <button
-                onClick={() => onRollback(p.id)}
-                className="text-xs px-2 py-1 bg-red-900/30 hover:bg-red-900/50 rounded text-red-400 transition-colors"
-              >
-                Rollback
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => onPreview(p)}
+                  className="text-xs px-2 py-1 bg-slate-700 hover:bg-slate-600 rounded text-slate-300 transition-colors"
+                >
+                  View
+                </button>
+                <button
+                  onClick={() => onRollback(p.id)}
+                  className="text-xs px-2 py-1 bg-red-900/30 hover:bg-red-900/50 rounded text-red-400 transition-colors"
+                >
+                  Rollback
+                </button>
+              </div>
             </div>
           </div>
         ))}

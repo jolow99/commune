@@ -8,6 +8,15 @@ export default class CommuneServer implements Server {
     this.room = room
   }
 
+  async onRequest(req: Party.Request) {
+    if (req.method === 'POST') {
+      const body = await req.json() as ServerBroadcast
+      this.room.broadcast(JSON.stringify(body))
+      return new Response('OK')
+    }
+    return new Response('Method not allowed', { status: 405 })
+  }
+
   onMessage(message: string, sender: Connection) {
     const msg: ClientMessage = JSON.parse(message)
     if (msg.type !== 'notify') return
@@ -25,6 +34,12 @@ export default class CommuneServer implements Server {
         break
       case 'rollback':
         broadcast = { type: 'rollback', proposal: msg.proposal, newFiles: msg.newFiles, newSpec: msg.newSpec }
+        break
+      case 'proposal_ready':
+        broadcast = { type: 'proposal_ready', proposal: msg.proposal }
+        break
+      case 'proposal_failed':
+        broadcast = { type: 'proposal_failed', proposalId: msg.proposalId, error: msg.error }
         break
       default:
         return

@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { readSpec, hashSpec } from '@/lib/git'
-import { editSpec, renderCode } from '@/lib/agent'
 import { supabase } from '@/lib/supabase'
 import { v4 as uuid } from 'uuid'
 import type { Proposal } from '@/lib/types'
@@ -15,50 +14,59 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing userPrompt or userId' }, { status: 400 })
     }
 
-    // Step 1: Read current state (parallel)
+    // Read current state
     const currentSpec = await readSpec()
     const baseSpecHash = hashSpec(currentSpec)
 
-    // Step 2: Edit the spec
-    const { description, spec: updatedSpec } = await editSpec(currentSpec, userPrompt)
-
-    // Step 3: Render code from the updated spec
-    const proposalFiles = await renderCode(updatedSpec)
-
     const id = uuid()
     const branch = `proposal/${id}`
+    const timestamp = Date.now()
 
-    const proposal: Proposal = {
-      id,
-      description,
-      userPrompt,
-      author: userId,
-      timestamp: Date.now(),
-      branch,
-      files: proposalFiles,
-      baseFilesHash: '', // no longer primary; kept for compat
-      spec: updatedSpec,
-      baseSpecHash,
-      status: 'pending',
-      votes: [],
-      votesNeeded: 3,
-    }
-
+    // Insert skeleton row with generating status
     await supabase.from('proposals').insert({
       id,
-      description,
+      description: '',
       user_prompt: userPrompt,
       author: userId,
-      timestamp: proposal.timestamp,
+      timestamp,
       branch,
-      files: proposalFiles,
+      files: {},
       base_files_hash: '',
-      spec: updatedSpec,
+      spec: '',
       base_spec_hash: baseSpecHash,
-      status: 'pending',
+      status: 'generating',
       votes: [],
       votes_needed: 3,
     })
+
+    const proposal: Proposal = {
+      id,
+      description: '',
+      userPrompt,
+      author: userId,
+      timestamp,
+      branch,
+      files: {},
+      baseFilesHash: '',
+      spec: '',
+      baseSpecHash,
+      status: 'generating',
+      votes: [],
+      votesNeeded: 3,
+      type: 'proposal',
+    }
+
+    // Build origin URL for the generate endpoint
+    const proto = req.headers.get('x-forwarded-proto') || 'http'
+    const host = req.headers.get('host') || 'localhost:3000'
+    const origin = `${proto}://${host}`
+
+    // Fire-and-forget: kick off generation in a separate serverless invocation
+    fetch(`${origin}/api/propose/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ proposalId: id, userPrompt, currentSpec, baseSpecHash }),
+    }).catch(console.error)
 
     return NextResponse.json({ proposal })
   } catch (error: unknown) {

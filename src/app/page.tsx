@@ -113,6 +113,18 @@ export default function Home() {
           setLiveFiles(msg.newFiles)
           if (msg.newSpec) setLiveSpec(msg.newSpec)
           break
+        case 'proposal_ready':
+          setPending((prev) => {
+            const exists = prev.some(p => p.id === msg.proposal.id)
+            if (exists) {
+              return prev.map(p => p.id === msg.proposal.id ? msg.proposal : p)
+            }
+            return [...prev, msg.proposal]
+          })
+          break
+        case 'proposal_failed':
+          setPending((prev) => prev.filter(p => p.id !== msg.proposalId))
+          break
       }
     },
   })
@@ -128,10 +140,10 @@ export default function Home() {
       })
       const { proposal } = await res.json()
       if (proposal) {
-        // Update local state immediately
+        // Add skeleton immediately (status: 'generating')
         setPending((prev) => [...prev, proposal])
         setInput('')
-        // Notify other clients via PartyKit
+        // Notify other clients of the generating skeleton
         ws.send(JSON.stringify({ type: 'notify', event: 'proposal_created', proposal }))
       }
     } catch (err) {

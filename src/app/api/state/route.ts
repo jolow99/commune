@@ -29,10 +29,23 @@ export async function GET() {
       votesNeeded: p.votes_needed || 3,
       type: p.type || 'proposal',
       revertsId: p.reverts_id || undefined,
+      errorMessage: p.error_message || undefined,
     }))
 
-    const pending = all.filter((p) => p.status === 'pending')
-    const history = all.filter((p) => p.status !== 'pending')
+    // Clean up stuck generating proposals (older than 2 minutes)
+    const twoMinutesAgo = Date.now() - 2 * 60 * 1000
+    for (const p of all) {
+      if (p.status === 'generating' && p.timestamp < twoMinutesAgo) {
+        p.errorMessage = 'Generation timed out'
+        await supabase
+          .from('proposals')
+          .update({ error_message: 'Generation timed out' })
+          .eq('id', p.id)
+      }
+    }
+
+    const pending = all.filter((p) => p.status === 'pending' || p.status === 'generating')
+    const history = all.filter((p) => p.status !== 'pending' && p.status !== 'generating')
 
     return NextResponse.json({ liveFiles, liveSpec, pending, history })
   } catch (error: unknown) {

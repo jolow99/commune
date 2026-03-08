@@ -67,11 +67,13 @@ Open http://localhost:3000 in two browser windows to test multiplayer.
 ## How It Works
 
 1. User types a natural language change request
-2. `editSpec()` updates a high-level markdown spec describing what the site should be
-3. `renderCode()` generates all React files from the updated spec
+2. `POST /api/propose` inserts a skeleton row (`status: 'generating'`) and returns instantly — the UI shows a spinner card
+3. `POST /api/propose/generate` runs asynchronously: `editSpec()` updates the spec, `renderCode()` generates files, then updates the row to `status: 'pending'` and broadcasts via PartyKit's HTTP API
 4. Proposal (with spec + files) appears live to all connected users via PartyKit
 5. When 3 users vote to approve, the branch merges to main
 6. The live page hot-reloads in all browsers via Sandpack
+
+This two-phase flow means the browser is never blocked during LLM generation, and proposals survive browser close (they persist in Supabase). Stuck proposals (generating for >2 minutes) are automatically cleaned up by `/api/state`.
 
 ## Spec Layer
 
