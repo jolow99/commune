@@ -1,4 +1,4 @@
-import type { Party, Connection, Server } from 'partykit/server'
+import type { Party, Connection, Server, Request as PartyRequest } from 'partykit/server'
 import type { ClientMessage, ServerBroadcast } from '../src/lib/types'
 
 export default class CommuneServer implements Server {
@@ -8,7 +8,7 @@ export default class CommuneServer implements Server {
     this.room = room
   }
 
-  async onRequest(req: Party.Request) {
+  async onRequest(req: PartyRequest) {
     if (req.method === 'POST') {
       const body = await req.json() as ServerBroadcast
       this.room.broadcast(JSON.stringify(body))
