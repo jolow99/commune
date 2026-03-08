@@ -18,7 +18,7 @@ async function broadcastToPartyKit(body: Record<string, unknown>) {
 }
 
 export async function POST(req: NextRequest) {
-  const { proposalId, userPrompt, currentSpec } = await req.json()
+  const { proposalId, userPrompt, currentSpec, baseSpecHash } = await req.json()
 
   try {
     // Step 1: Edit the spec
@@ -27,37 +27,35 @@ export async function POST(req: NextRequest) {
     // Step 2: Render code from the updated spec
     const files = await renderCode(updatedSpec)
 
-    // Step 3: Update Supabase row to pending
-    await supabase
+    // Step 3: Update Supabase row to pending and get the updated row back
+    const { error: updateError } = await supabase
       .from('proposals')
       .update({ description, spec: updatedSpec, files, status: 'pending' })
       .eq('id', proposalId)
 
-    // Step 4: Fetch the full row to build the Proposal object
-    const { data, error: fetchError } = await supabase.from('proposals').select('*').eq('id', proposalId).single()
-
-    if (fetchError || !data) {
-      throw new Error(`Failed to fetch proposal after update: ${fetchError?.message || 'not found'}`)
+    if (updateError) {
+      throw new Error(`Failed to update proposal: ${updateError.message}`)
     }
 
+    // Step 4: Broadcast proposal_ready via PartyKit HTTP API
+    // Build proposal from what we already know — no need to re-fetch
     const proposal: Proposal = {
-      id: data.id,
-      description: data.description,
-      userPrompt: data.user_prompt,
-      author: data.author,
-      timestamp: data.timestamp,
-      branch: data.branch,
-      files: data.files,
-      baseFilesHash: data.base_files_hash || '',
-      spec: data.spec,
-      baseSpecHash: data.base_spec_hash,
+      id: proposalId,
+      description,
+      userPrompt,
+      author: '',
+      timestamp: new Date().toISOString(),
+      branch: `proposal/${proposalId}`,
+      files,
+      baseFilesHash: '',
+      spec: updatedSpec,
+      baseSpecHash: baseSpecHash || '',
       status: 'pending',
-      votes: data.votes || [],
-      votesNeeded: data.votes_needed || 3,
-      type: data.type || 'proposal',
+      votes: [],
+      votesNeeded: 3,
+      type: 'proposal',
     }
 
-    // Step 5: Broadcast proposal_ready via PartyKit HTTP API
     await broadcastToPartyKit({ type: 'proposal_ready', proposal })
 
     return NextResponse.json({ ok: true })

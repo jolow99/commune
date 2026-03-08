@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { waitUntil } from '@vercel/functions'
 import { readSpec, hashSpec } from '@/lib/git'
 import { supabase } from '@/lib/supabase'
 import { v4 as uuid } from 'uuid'
@@ -61,12 +62,15 @@ export async function POST(req: NextRequest) {
     const host = req.headers.get('host') || 'localhost:3000'
     const origin = `${proto}://${host}`
 
-    // Fire-and-forget: kick off generation in a separate serverless invocation
-    fetch(`${origin}/api/propose/generate`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ proposalId: id, userPrompt, currentSpec, baseSpecHash }),
-    }).catch(console.error)
+    // Kick off generation in a separate serverless invocation
+    // waitUntil keeps the function alive until the fetch completes without blocking the response
+    waitUntil(
+      fetch(`${origin}/api/propose/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ proposalId: id, userPrompt, currentSpec, baseSpecHash }),
+      }).catch(console.error)
+    )
 
     return NextResponse.json({ proposal })
   } catch (error: unknown) {
