@@ -72,12 +72,13 @@ Rules:
 
 const RENDER_CODE_PROMPT = `You generate React component files from a site spec.
 
-You will receive a markdown spec describing what the site should look like. Return ONLY valid JSON:
-{
-  "files": {
-    "src/App.tsx": "complete file contents"
-  }
-}
+You will receive a markdown spec describing what the site should look like. Return files using this EXACT format — one block per file, with the path on the delimiter line:
+
+---FILE: src/App.tsx---
+import React from 'react'
+// ... complete file contents ...
+---FILE: src/components/Hero.tsx---
+// ... complete file contents ...
 
 Rules:
 - Generate ALL files needed. Always include src/App.tsx as the entry point.
@@ -85,7 +86,8 @@ Rules:
 - The app uses React 18, Framer Motion, and Tailwind (via CDN). No other libraries.
 - Make the site visually polished with smooth animations.
 - This is a landing page for a social movement. Keep that context.
-- Return complete file contents for every file.`
+- Return complete file contents for every file.
+- Do NOT wrap output in JSON or markdown code fences. Use ONLY the ---FILE: path--- format.`
 
 const REBASE_SPEC_PROMPT = `You reconcile a proposed site spec with a newer version of the main spec.
 
@@ -120,6 +122,25 @@ export async function editSpec(
   return parseJSON(raw, ['description', 'spec'])
 }
 
+function parseFiles(raw: string): Record<string, string> {
+  const files: Record<string, string> = {}
+  const parts = raw.split(/^---FILE:\s*/m)
+  for (const part of parts) {
+    if (!part.trim()) continue
+    const endOfPath = part.indexOf('---')
+    if (endOfPath === -1) continue
+    const filePath = part.slice(0, endOfPath).trim()
+    const content = part.slice(endOfPath + 3).replace(/^\n/, '')
+    if (filePath && content.trim()) {
+      files[filePath] = content.trimEnd() + '\n'
+    }
+  }
+  if (Object.keys(files).length === 0) {
+    throw new Error('No files found in LLM response')
+  }
+  return files
+}
+
 export async function renderCode(
   spec: string
 ): Promise<Record<string, string>> {
@@ -128,8 +149,7 @@ export async function renderCode(
     `Site spec:\n${spec}`,
     0.5
   )
-  const parsed = parseJSON<{ files: Record<string, string> }>(raw, ['files'])
-  return parsed.files
+  return parseFiles(raw)
 }
 
 export async function rebaseSpec(

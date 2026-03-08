@@ -34,7 +34,11 @@ export async function POST(req: NextRequest) {
       .eq('id', proposalId)
 
     // Step 4: Fetch the full row to build the Proposal object
-    const { data } = await supabase.from('proposals').select('*').eq('id', proposalId).single()
+    const { data, error: fetchError } = await supabase.from('proposals').select('*').eq('id', proposalId).single()
+
+    if (fetchError || !data) {
+      throw new Error(`Failed to fetch proposal after update: ${fetchError?.message || 'not found'}`)
+    }
 
     const proposal: Proposal = {
       id: data.id,
