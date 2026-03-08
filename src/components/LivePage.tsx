@@ -9,11 +9,10 @@ interface LivePageProps {
 function toSandpackFiles(files: Record<string, string>) {
   const result: Record<string, string> = {}
   for (const [path, content] of Object.entries(files)) {
-    const key = path.startsWith('/') ? path : `/${path}`
+    // Strip src/ prefix so Sandpack resolves imports consistently from /App.tsx
+    const normalized = path.replace(/^\/?(src\/)/, '')
+    const key = normalized.startsWith('/') ? normalized : `/${normalized}`
     result[key] = content
-  }
-  if (result['/src/App.tsx'] && !result['/App.tsx']) {
-    result['/App.tsx'] = result['/src/App.tsx']
   }
   if (!result['/App.tsx']) {
     result['/App.tsx'] = 'export default function App() { return <div>Loading...</div> }'
