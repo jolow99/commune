@@ -13,7 +13,8 @@ interface ProposalFeedProps {
   onPreview: (proposal: Proposal) => void
 }
 
-function timeAgo(epochMs: number): string {
+function timeAgo(ts: number | string): string {
+  const epochMs = typeof ts === 'string' ? new Date(ts).getTime() : ts
   const seconds = Math.floor((Date.now() - epochMs) / 1000)
   if (seconds < 60) return 'just now'
   const minutes = Math.floor(seconds / 60)

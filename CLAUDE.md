@@ -77,4 +77,4 @@ Migration files live in `supabase/migrations/`. When making schema changes, crea
 ## Workflow Rules
 
 - After any significant architectural change, update `README.md` to reflect the new behavior. The README is the primary documentation for contributors and should stay in sync with the codebase.
-- **Before finishing any change, run `npx next lint` to catch unused variables and other ESLint errors.** The Vercel build will fail on these. Never leave unused variables, unused imports, or declared-but-unread locals in the code.
+- **Before finishing any change, run `npm run build` to catch type errors, unused variables, and other issues.** The Vercel build will fail on these. Never leave unused variables, unused imports, type mismatches, or declared-but-unread locals in the code.
