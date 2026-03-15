@@ -1,5 +1,5 @@
 {
-  "name": "commune",
+  "name": "revolution-engine",
   "main": "party/index.ts",
   "parties": {
     "cursors": "party/cursors.ts"

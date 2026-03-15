@@ -7,13 +7,15 @@ import ProposalFeed from '@/components/ProposalFeed'
 import LivePage from '@/components/LivePage'
 import PreviewModal from '@/components/PreviewModal'
 import Cursors from '@/components/Cursors'
+import InterviewChat from '@/components/InterviewChat'
+import { authClient } from '@/lib/auth-client'
 import type { Proposal, ServerBroadcast } from '@/lib/types'
 
 function getOrCreateUserId() {
-  let id = localStorage.getItem('commune-user-id')
+  let id = localStorage.getItem('re-user-id')
   if (!id) {
     id = 'user-' + Math.random().toString(36).slice(2, 10)
-    localStorage.setItem('commune-user-id', id)
+    localStorage.setItem('re-user-id', id)
   }
   return id
 }
@@ -52,10 +54,15 @@ export default function App() {
 
 export default function Home() {
   const [userId, setUserId] = useState('')
+  const { data: session } = authClient.useSession()
 
   useEffect(() => {
-    setUserId(getOrCreateUserId())
-  }, [])
+    if (session?.user?.id) {
+      setUserId(session.user.id)
+    } else {
+      setUserId(getOrCreateUserId())
+    }
+  }, [session])
   const [liveFiles, setLiveFiles] = useState<Record<string, string>>(DEFAULT_FILES)
   const [liveSpec, setLiveSpec] = useState('')
   const [pending, setPending] = useState<Proposal[]>([])
@@ -82,7 +89,7 @@ export default function Home() {
   // PartyKit: only receives real-time broadcasts from other clients
   const ws = usePartySocket({
     host: process.env.NEXT_PUBLIC_PARTYKIT_HOST || '127.0.0.1:1999',
-    room: 'commune-main',
+    room: 're-main',
     onMessage(evt) {
       const msg: ServerBroadcast = JSON.parse(evt.data)
       switch (msg.type) {
@@ -246,19 +253,29 @@ export default function Home() {
       <Cursors />
       {/* Top bar */}
       <header className="h-12 border-b border-slate-800 flex items-center justify-between px-4 shrink-0">
-        <h1 className="text-lg font-bold tracking-tight">Commune</h1>
+        <h1 className="text-lg font-bold tracking-tight">Revolution Engine</h1>
         <div className="flex items-center gap-3">
-          <div className="flex gap-1.5">
-            {[0].map((i) => (
-              <div
-                key={i}
-                className="w-2.5 h-2.5 rounded-full bg-indigo-400"
-              />
-            ))}
-          </div>
           <span className="text-xs text-slate-500">
             {pending.length} pending
           </span>
+          {session?.user ? (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-slate-400">{session.user.name}</span>
+              <button
+                onClick={() => authClient.signOut()}
+                className="text-xs text-slate-500 hover:text-slate-300 transition-colors"
+              >
+                Sign out
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => authClient.signIn.social({ provider: 'google' })}
+              className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1.5 rounded-lg transition-colors"
+            >
+              Sign in
+            </button>
+          )}
         </div>
       </header>
 
@@ -296,6 +313,9 @@ export default function Home() {
         </button>
         <span className="text-xs text-slate-600">{userId}</span>
       </footer>
+
+      {/* Interview chat */}
+      <InterviewChat userId={userId} />
 
       {/* Preview modal */}
       <AnimatePresence>

@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Commune",
-  description: "A multiplayer platform where social movements collaboratively edit a live website",
+  title: "Revolution Engine",
+  description: "A platform where social movements collaboratively shape their direction",
 };
 
 export default function RootLayout({

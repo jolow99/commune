@@ -1,7 +1,7 @@
 import type { Party, Connection, Server, Request as PartyRequest } from 'partykit/server'
 import type { ClientMessage, ServerBroadcast } from '../src/lib/types'
 
-export default class CommuneServer implements Server {
+export default class RevolutionEngineServer implements Server {
   readonly room: Party
 
   constructor(room: Party) {

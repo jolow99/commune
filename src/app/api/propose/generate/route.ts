@@ -9,7 +9,7 @@ export const maxDuration = 300
 async function broadcastToPartyKit(body: Record<string, unknown>) {
   const host = process.env.NEXT_PUBLIC_PARTYKIT_HOST || '127.0.0.1:1999'
   const proto = host.includes('localhost') || host.includes('127.0.0.1') ? 'http' : 'https'
-  const url = `${proto}://${host}/parties/main/commune-main`
+  const url = `${proto}://${host}/parties/main/re-main`
   await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
