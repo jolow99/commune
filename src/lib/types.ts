@@ -15,6 +15,89 @@ export interface Proposal {
   votesNeeded: number
   type: 'proposal' | 'rollback'
   revertsId?: string
+  body?: string
+  projectId?: string
+  sourceThemeId?: string
+}
+
+export interface ProposalSuggestion {
+  id: string
+  proposalId: string
+  author: string
+  originalText: string
+  suggestedText: string
+  status: 'pending' | 'accepted' | 'rejected'
+  createdAt: string
+}
+
+export interface Project {
+  id: string
+  name: string
+  description: string
+  createdBy: string
+  sourceThemeId?: string
+  status: 'active' | 'archived'
+  spec?: string
+  files?: Record<string, string>
+  createdAt: string
+  updatedAt: string
+}
+
+export interface Theme {
+  id: string
+  scope: string
+  projectId?: string
+  label: string
+  description: string
+  category: 'priority' | 'idea' | 'concern' | 'vision'
+  keywords: string[]
+  conversationIds: string[]
+  supportCount: number
+  status: 'active' | 'proposal_generated' | 'archived'
+  proposalId?: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface Tension {
+  id: string
+  scope: string
+  themeAId: string
+  themeBId: string
+  themeALabel?: string
+  themeBLabel?: string
+  description: string
+  severity: 'low' | 'medium' | 'high'
+  status: 'active' | 'resolved'
+  resolution?: string
+  createdAt: string
+}
+
+export interface ConversationSummary {
+  vision: string
+  priorities: string[]
+  skills: string[]
+  ideas: string[]
+  concerns: string[]
+}
+
+export interface Conversation {
+  id: string
+  userId: string
+  scope: string
+  messages: { role: 'user' | 'assistant'; content: string }[]
+  summary?: ConversationSummary
+  createdAt: string
+  updatedAt: string
+}
+
+export interface Notification {
+  id: string
+  userId: string
+  type: string
+  payload: Record<string, unknown>
+  read: boolean
+  createdAt: string
 }
 
 // Client sends notifications to PartyKit after API calls succeed

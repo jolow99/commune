@@ -9,13 +9,61 @@ export const dynamic = 'force-dynamic'
 
 export async function POST(req: NextRequest) {
   try {
-    const { userPrompt, userId } = await req.json()
+    const { userPrompt, userId, projectId, body } = await req.json()
 
     if (!userPrompt || !userId) {
       return NextResponse.json({ error: 'Missing userPrompt or userId' }, { status: 400 })
     }
 
-    // Read current state
+    const MOVEMENT_ID = '00000000-0000-0000-0000-000000000001'
+    const resolvedProjectId = projectId || MOVEMENT_ID
+    const isMovementLevel = resolvedProjectId === MOVEMENT_ID
+
+    // Document-type proposals (movement-level with body) skip code generation
+    if (isMovementLevel && body) {
+      const id = uuid()
+      const branch = `proposal/${id}`
+      const timestamp = new Date().toISOString()
+
+      await supabase.from('proposals').insert({
+        id,
+        description: userPrompt,
+        user_prompt: userPrompt,
+        author: userId,
+        timestamp,
+        branch,
+        files: {},
+        base_files_hash: '',
+        spec: '',
+        base_spec_hash: '',
+        body,
+        status: 'pending',
+        votes: [],
+        votes_needed: 3,
+        project_id: MOVEMENT_ID,
+      })
+
+      const proposal: Proposal = {
+        id,
+        description: userPrompt,
+        userPrompt,
+        author: userId,
+        timestamp,
+        branch,
+        files: {},
+        baseFilesHash: '',
+        status: 'pending',
+        votes: [],
+        votesNeeded: 3,
+        type: 'proposal',
+        body,
+        projectId: MOVEMENT_ID,
+      }
+
+      return NextResponse.json({ proposal })
+    }
+
+    // Code-type proposals: generate via LLM
     const currentSpec = await readSpec()
     const baseSpecHash = hashSpec(currentSpec)
 
@@ -38,6 +86,7 @@ export async function POST(req: NextRequest) {
       status: 'generating',
       votes: [],
       votes_needed: 3,
+      project_id: resolvedProjectId,
     })
 
     const proposal: Proposal = {
@@ -55,6 +104,7 @@ export async function POST(req: NextRequest) {
       votes: [],
       votesNeeded: 3,
       type: 'proposal',
+      projectId: resolvedProjectId,
     }
 
     // Build origin URL for the generate endpoint
@@ -63,7 +113,6 @@ export async function POST(req: NextRequest) {
     const origin = `${proto}://${host}`
 
     // Kick off generation in a separate serverless invocation
-    // waitUntil keeps the function alive until the fetch completes without blocking the response
     waitUntil(
       fetch(`${origin}/api/propose/generate`, {
         method: 'POST',

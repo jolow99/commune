@@ -1,17 +1,24 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { readFiles, readSpec } from '@/lib/git'
 import { supabase } from '@/lib/supabase'
 
 export const dynamic = 'force-dynamic'
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
+    const projectId = req.nextUrl.searchParams.get('projectId')
     const [liveFiles, liveSpec] = await Promise.all([readFiles(), readSpec()])
 
-    const { data: proposals } = await supabase
+    let query = supabase
       .from('proposals')
       .select('*')
       .order('timestamp', { ascending: false })
+
+    if (projectId) {
+      query = query.eq('project_id', projectId)
+    }
+
+    const { data: proposals } = await query
 
     const all = (proposals || []).map((p) => ({
       id: p.id,
@@ -30,6 +37,9 @@ export async function GET() {
       type: p.type || 'proposal',
       revertsId: p.reverts_id || undefined,
       errorMessage: p.error_message || undefined,
+      body: p.body || undefined,
+      projectId: p.project_id || undefined,
+      sourceThemeId: p.source_theme_id || undefined,
     }))
 
     // Clean up stuck generating proposals (older than 2 minutes)

@@ -38,12 +38,18 @@ export async function POST(req: NextRequest) {
     }
 
     // Step 4: Broadcast proposal_ready via PartyKit HTTP API
-    // Build proposal from what we already know — no need to re-fetch
+    // Re-fetch to get project_id and author
+    const { data: updatedRow } = await supabase
+      .from('proposals')
+      .select('author, project_id')
+      .eq('id', proposalId)
+      .single()
+
     const proposal: Proposal = {
       id: proposalId,
       description,
       userPrompt,
-      author: '',
+      author: updatedRow?.author || '',
       timestamp: new Date().toISOString(),
       branch: `proposal/${proposalId}`,
       files,
@@ -54,6 +60,7 @@ export async function POST(req: NextRequest) {
       votes: [],
       votesNeeded: 3,
       type: 'proposal',
+      projectId: updatedRow?.project_id || undefined,
     }
 
     await broadcastToPartyKit({ type: 'proposal_ready', proposal })

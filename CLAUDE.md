@@ -1,50 +1,72 @@
-# Commune
+# Revolution Engine
 
 ## What This Is
-A multiplayer platform where social movements collaboratively edit a live website through natural language. Users describe changes in plain text, an LLM generates updated React components, and the community votes to merge them. Every change is a git branch. Every vote is a merge.
+A platform where social movements collaboratively shape their direction through collective intelligence. Users share their voice through AI-guided interviews, the system synthesizes collective themes, and the community votes on auto-generated proposals. Every change is a git branch. Every vote is a merge.
 
 ## Tech Stack
 - **Next.js 14** (app router, TypeScript) — main app
-- **isomorphic-git** with Node.js fs — server-side git repo at `.commune-repo/`
-- **PartyKit** — real-time proposals, votes, presence, merge events (room: `commune-main`)
+- **PartyKit** — real-time proposals, votes, presence, merge events (room: `re-main`)
 - **Sandpack** (`@codesandbox/sandpack-react`) — renders live page and proposal previews in-browser
 - **Framer Motion** — UI transitions (used in the app shell AND in the sandboxed preview code)
-- **OpenRouter** (`z-ai/glm-5`) — LLM agent for generating code changes
-- **Supabase** — persistent proposal storage (falls back to in-memory if credentials missing)
+- **OpenRouter** (`z-ai/glm-5`) — LLM agent for generating code changes and synthesis
+- **Supabase** — persistent storage (proposals, themes, conversations, projects, notifications)
+- **better-auth** — Google OAuth authentication
 - **Tailwind CSS** — styling (Tailwind 3 Play CDN inside Sandpack iframes)
 
 ## Architecture
 
-### Flow
-1. User types natural language change request in bottom bar
-2. `POST /api/propose` reads current spec + files, calls `editSpec()` to update the markdown spec, then `renderCode()` to generate React files from it. Saves both to Supabase.
-3. Proposal broadcasts to all clients via PartyKit
-4. Users vote; at 3 votes, `POST /api/vote` merges (rebasing the spec if main has diverged)
-5. Spec + files merge to main, all Sandpack previews hot-reload with new files
-6. Any merged change can be rolled back via `POST /api/rollback` (restores both spec and files)
+### Two Modes
+- **Movement View (`/`)** — Dashboard showing document-based proposals (left) and projects (right). Proposals are markdown documents (project pitches/RFCs). Merged proposals auto-create projects. Users can suggest edits to proposals.
+- **Project View (`/project/[id]`)** — Workspace with project themes + proposals (left) and Sandpack live preview (right).
+
+### Interview → Synthesis → Proposals Pipeline
+1. User completes an AI-guided interview (movement or project scoped)
+2. Synthesis engine clusters conversation summaries into themes (`POST /api/synthesize` via `waitUntil`)
+3. Themes with 5+ voices auto-generate proposals via `autoPropose()`
+4. Community votes on proposals (3 votes to merge)
+5. After merging synthesis-driven proposals, contributing users get notifications
+6. Tensions between themes are surfaced for deliberation
+
+### Movement → Project Hierarchy
+- Movement-level interviews produce themes about the movement's direction
+- High-support idea themes (10+ voices) can spawn projects
+- Project-level interviews produce project-specific themes and proposals
+- Each project has its own scope for conversations, themes, and proposals
 
 ### Spec Layer
-The site's state is defined by a **high-level markdown spec** (stored in `site_state.spec`). User prompts edit the spec via `editSpec()`, then `renderCode()` generates all React files from it. This gives a single human-readable source of truth and makes rebases cleaner (reconcile descriptions, not code).
+The site's state is defined by a **high-level markdown spec** (stored in `site_state.spec`). User prompts edit the spec via `editSpec()`, then `renderCode()` generates all React files from it.
 
 - `editSpec(currentSpec, userPrompt)` → updated spec + description
 - `renderCode(spec)` → complete file set
 - `rebaseSpec(mainSpec, proposalSpec, originalPrompt)` → reconciled spec
 - Staleness is checked via `baseSpecHash` (SHA256 of spec at proposal creation)
-- PreviewModal shows a tabbed view: "Spec Changes" (line diff) and "Preview" (Sandpack)
 
 ### Key Files
-- `src/lib/git.ts` — storage abstraction (readFiles, readSpec, hashSpec, mergeBranch, revertToFiles, DEFAULT_SPEC)
-- `src/lib/agent.ts` — LLM functions: editSpec, renderCode, rebaseSpec (+ legacy generateProposal, rebaseProposal)
-- `src/lib/supabase.ts` — Supabase client with in-memory fallback
-- `src/lib/types.ts` — shared Proposal, ClientMessage, ServerBroadcast types
-- `src/app/api/propose/route.ts` — proposal creation endpoint
-- `src/app/api/vote/route.ts` — voting + merge endpoint (spec-aware rebase)
-- `src/app/api/rollback/route.ts` — revert endpoint
-- `party/index.ts` — PartyKit server (single room, handles vote counting and merge triggers)
-- `src/components/LivePage.tsx` — Sandpack preview of current main
-- `src/components/ProposalFeed.tsx` — left panel with pending/history proposals
-- `src/components/PreviewModal.tsx` — modal preview of a proposal's changes
-- `src/app/page.tsx` — main page wiring everything together
+- `src/app/page.tsx` — Movement dashboard (proposals + projects)
+- `src/app/project/[id]/page.tsx` — Project workspace (proposals + live preview)
+- `src/lib/synthesis.ts` — Theme clustering, auto-proposal, tension detection
+- `src/lib/agent.ts` — LLM functions: editSpec, renderCode, rebaseSpec
+- `src/lib/git.ts` — Storage abstraction (readFiles, readSpec, hashSpec)
+- `src/lib/types.ts` — Shared types (Proposal, Project, Theme, Tension, Conversation, Notification)
+- `src/components/ThemeList.tsx` — Theme cards with progress bars, tensions, expand/flag
+- `src/components/VoicePanel.tsx` — Slide-out panel for viewing/editing interview summaries
+- `src/components/NotificationBell.tsx` — Notification dropdown
+- `src/components/ProposalFeed.tsx` — Proposals with community-driven badges
+- `src/components/InterviewChat.tsx` — Floating interview chat (scoped)
+- `src/components/LivePage.tsx` — Sandpack preview
+- `src/components/PreviewModal.tsx` — Proposal preview modal
+- `src/app/api/synthesize/route.ts` — Synthesis trigger endpoint
+- `src/app/api/themes/route.ts` — Theme listing with tensions
+- `src/app/api/themes/[id]/route.ts` — Theme detail and flagging
+- `src/app/api/projects/route.ts` — Project CRUD
+- `src/app/api/voice/route.ts` — Voice panel (GET summaries, PATCH to edit)
+- `src/app/api/notifications/route.ts` — Notification CRUD
+- `src/components/ProposalDocumentModal.tsx` — Document proposal modal (markdown body + suggestions)
+- `src/app/api/proposals/[id]/suggestions/route.ts` — CRUD for edit suggestions on proposals
+- `src/app/api/propose/route.ts` — Proposal creation (with projectId, body for document proposals)
+- `src/app/api/vote/route.ts` — Voting + merge (with notification triggers)
+- `src/app/api/interview/route.ts` — Interview chat (with scope + synthesis trigger)
+- `party/index.ts` — PartyKit server
 
 ### Sandpack Notes
 - Sandpack's `react-ts` template expects `/App.tsx` as entry — we copy `src/App.tsx` to `/App.tsx`
@@ -58,7 +80,7 @@ npm run dev:all  # Next.js on :3000, PartyKit on :1999
 ```
 
 ## Environment Variables
-See `.env.local` — needs `OPENROUTER_API_KEY`, `NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `NEXT_PUBLIC_PARTYKIT_HOST`.
+See `.env.local` — needs `OPENROUTER_API_KEY`, `NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `NEXT_PUBLIC_PARTYKIT_HOST`, `DATABASE_URL`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `NEXT_PUBLIC_APP_URL`.
 
 ## Database Migrations (Supabase CLI)
 

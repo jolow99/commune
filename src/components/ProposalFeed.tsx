@@ -8,6 +8,8 @@ interface ProposalFeedProps {
   history: Proposal[]
   userId: string
   mergingProposalId: string | null
+  projectId?: string
+  embedded?: boolean
   onVote: (proposalId: string) => void
   onRollback: (proposalId: string) => void
   onPreview: (proposal: Proposal) => void
@@ -50,19 +52,28 @@ export default function ProposalFeed({
   history,
   userId,
   mergingProposalId,
+  projectId,
+  embedded,
   onVote,
   onRollback,
   onPreview,
 }: ProposalFeedProps) {
-  return (
-    <div className="w-80 bg-slate-900 border-r border-slate-700 flex flex-col h-full overflow-hidden">
+  const filteredPending = projectId
+    ? pending.filter(p => p.projectId === projectId || (!p.projectId && projectId === '00000000-0000-0000-0000-000000000001'))
+    : pending
+  const filteredHistory = projectId
+    ? history.filter(p => p.projectId === projectId || (!p.projectId && projectId === '00000000-0000-0000-0000-000000000001'))
+    : history
+
+  const content = (
+    <>
       {/* Pending */}
-      <div className="flex-1 overflow-y-auto">
+      <div className={embedded ? '' : 'flex-1 overflow-y-auto'}>
         <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider px-4 pt-4 pb-2">
-          Pending ({pending.length})
+          Pending ({filteredPending.length})
         </h2>
         <AnimatePresence>
-          {pending.map((p) => (
+          {filteredPending.map((p) => (
             <motion.div
               key={p.id}
               initial={{ x: -20, opacity: 0 }}
@@ -85,11 +96,27 @@ export default function ProposalFeed({
                 </>
               ) : (
                 <>
-                  <p className="text-xs text-indigo-400 mb-1 line-clamp-2 italic">&ldquo;{p.userPrompt}&rdquo;</p>
-                  <p className="text-sm text-white mb-2 line-clamp-2">{p.description}</p>
+                  {p.sourceThemeId && (
+                    <div className="flex items-center gap-1 mb-1.5">
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400">
+                        Community-driven
+                      </span>
+                    </div>
+                  )}
+                  {p.body ? (
+                    <>
+                      <p className="text-sm text-white font-medium mb-1 line-clamp-1">{p.description || p.userPrompt}</p>
+                      <p className="text-xs text-slate-400 mb-2 line-clamp-2">{p.body.slice(0, 120)}{p.body.length > 120 ? '...' : ''}</p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-xs text-indigo-400 mb-1 line-clamp-2 italic">&ldquo;{p.userPrompt}&rdquo;</p>
+                      <p className="text-sm text-white mb-2 line-clamp-2">{p.description}</p>
+                    </>
+                  )}
                   <div className="flex items-center gap-2 mb-2">
                     <p className="text-xs text-slate-500">by {p.author.slice(0, 8)} &middot; {timeAgo(p.timestamp)}</p>
-                    <span className="text-xs text-amber-500/70">&middot; Preview may change on merge</span>
+                    {!p.body && <span className="text-xs text-amber-500/70">&middot; Preview may change on merge</span>}
                   </div>
                   <VoteBar votes={p.votes.length} needed={p.votesNeeded} />
                   {mergingProposalId === p.id ? (
@@ -119,15 +146,15 @@ export default function ProposalFeed({
             </motion.div>
           ))}
         </AnimatePresence>
-        {pending.length === 0 && (
+        {filteredPending.length === 0 && (
           <p className="text-sm text-slate-600 px-4">No pending proposals</p>
         )}
 
         {/* History */}
         <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider px-4 pt-4 pb-2">
-          History ({history.length})
+          History ({filteredHistory.length})
         </h2>
-        {history.map((p) => (
+        {filteredHistory.map((p) => (
           <div
             key={p.id}
             className="mx-3 mb-2 p-3 bg-slate-800/50 rounded-lg border border-slate-700/50"
@@ -159,6 +186,14 @@ export default function ProposalFeed({
           </div>
         ))}
       </div>
+    </>
+  )
+
+  if (embedded) return content
+
+  return (
+    <div className="w-80 bg-slate-900 border-r border-slate-700 flex flex-col h-full overflow-hidden">
+      {content}
     </div>
   )
 }

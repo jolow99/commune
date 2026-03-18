@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { waitUntil } from '@vercel/functions'
 import { supabase } from '@/lib/supabase'
 
 export const dynamic = 'force-dynamic'
@@ -124,21 +125,24 @@ async function callInterviewLLM(messages: LLMMessage[]): Promise<{
 
 // POST: send a message and get a response
 export async function POST(req: NextRequest) {
-  const { conversationId, message, userId } = await req.json()
+  const { conversationId, message, userId, scope: requestScope } = await req.json()
 
   if (!userId) {
     return NextResponse.json({ error: 'userId required' }, { status: 400 })
   }
 
+  const scope = requestScope || 'movement'
+
   try {
     let messages: Message[] = []
     let id = conversationId
     let locked = false
+    let conversationScope = scope
 
     if (id) {
       const { data } = await supabase
         .from('conversations')
-        .select('messages, summary')
+        .select('messages, summary, scope')
         .eq('id', id)
         .single()
 
@@ -146,10 +150,11 @@ export async function POST(req: NextRequest) {
         locked = true
       }
       messages = (data?.messages as Message[]) || []
+      conversationScope = data?.scope || scope
     } else {
       const { data, error } = await supabase
         .from('conversations')
-        .insert({ user_id: userId, scope: 'movement', messages: [] })
+        .insert({ user_id: userId, scope, messages: [] })
         .select('id')
         .single()
 
@@ -168,8 +173,27 @@ export async function POST(req: NextRequest) {
     // Add user message
     messages.push({ role: 'user', content: message })
 
+    // Build context-aware LLM messages
+    const llmMessages: LLMMessage[] = [...messages]
+
+    // If project-scoped, fetch project context for the LLM
+    if (conversationScope !== 'movement') {
+      const { data: project } = await supabase
+        .from('projects')
+        .select('name, description')
+        .eq('id', conversationScope)
+        .single()
+
+      if (project) {
+        llmMessages.unshift({
+          role: 'system' as const,
+          content: `Context: This conversation is about the project "${project.name}": ${project.description}. Focus questions on this specific project rather than the movement overall.`,
+        })
+      }
+    }
+
     // Get LLM response
-    const result = await callInterviewLLM(messages)
+    const result = await callInterviewLLM(llmMessages)
 
     const assistantMessage = result.content || 'Thanks for sharing all of that!'
     messages.push({ role: 'assistant', content: assistantMessage })
@@ -191,6 +215,21 @@ export async function POST(req: NextRequest) {
       .update(updateData)
       .eq('id', id)
 
+    // Trigger synthesis after interview completion
+    if (completed) {
+      const proto = req.headers.get('x-forwarded-proto') || 'http'
+      const host = req.headers.get('host') || 'localhost:3000'
+      const origin = `${proto}://${host}`
+
+      waitUntil(
+        fetch(`${origin}/api/synthesize`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ scope: conversationScope }),
+        }).catch(console.error)
+      )
+    }
+
     return NextResponse.json({
       conversationId: id,
       message: assistantMessage,
@@ -206,6 +245,7 @@ export async function POST(req: NextRequest) {
 // GET: start or resume a conversation
 export async function GET(req: NextRequest) {
   const userId = req.nextUrl.searchParams.get('userId')
+  const scope = req.nextUrl.searchParams.get('scope') || 'movement'
 
   if (!userId) {
     return NextResponse.json({ error: 'userId required' }, { status: 400 })
@@ -217,7 +257,7 @@ export async function GET(req: NextRequest) {
       .from('conversations')
       .select('id, messages, summary')
       .eq('user_id', userId)
-      .eq('scope', 'movement')
+      .eq('scope', scope)
       .is('summary', null)
       .order('updated_at', { ascending: false })
       .limit(1)
@@ -231,14 +271,31 @@ export async function GET(req: NextRequest) {
       })
     }
 
+    // If project-scoped, add context to the opening
+    const contextMessages: LLMMessage[] = []
+    if (scope !== 'movement') {
+      const { data: project } = await supabase
+        .from('projects')
+        .select('name, description')
+        .eq('id', scope)
+        .single()
+
+      if (project) {
+        contextMessages.push({
+          role: 'system' as const,
+          content: `Context: This conversation is about the project "${project.name}": ${project.description}. Focus your opening question on this specific project.`,
+        })
+      }
+    }
+
     // Generate opening question
-    const result = await callInterviewLLM([])
+    const result = await callInterviewLLM(contextMessages)
     const opening = result.content
     const messages: Message[] = [{ role: 'assistant', content: opening }]
 
     const { data, error } = await supabase
       .from('conversations')
-      .insert({ user_id: userId, scope: 'movement', messages })
+      .insert({ user_id: userId, scope, messages })
       .select('id')
       .single()
 

@@ -10,10 +10,19 @@ interface Message {
 
 interface InterviewChatProps {
   userId: string
+  scope?: string
+  externalOpen?: boolean
+  onExternalOpenChange?: (open: boolean) => void
+  hideFloatingButton?: boolean
 }
 
-export default function InterviewChat({ userId }: InterviewChatProps) {
-  const [isOpen, setIsOpen] = useState(false)
+export default function InterviewChat({ userId, scope = 'movement', externalOpen, onExternalOpenChange, hideFloatingButton }: InterviewChatProps) {
+  const [internalOpen, setInternalOpen] = useState(false)
+  const isOpen = externalOpen !== undefined ? externalOpen : internalOpen
+  const setIsOpen = (open: boolean) => {
+    if (onExternalOpenChange) onExternalOpenChange(open)
+    else setInternalOpen(open)
+  }
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
@@ -41,7 +50,7 @@ export default function InterviewChat({ userId }: InterviewChatProps) {
     if (loading || messages.length > 0) return
     setLoading(true)
     try {
-      const res = await fetch(`/api/interview?userId=${encodeURIComponent(userId)}`)
+      const res = await fetch(`/api/interview?userId=${encodeURIComponent(userId)}&scope=${encodeURIComponent(scope)}`)
       const data = await res.json()
       if (data.error) throw new Error(data.error)
       setConversationId(data.conversationId)
@@ -51,7 +60,7 @@ export default function InterviewChat({ userId }: InterviewChatProps) {
     } finally {
       setLoading(false)
     }
-  }, [userId, loading, messages.length])
+  }, [userId, scope, loading, messages.length])
 
   const handleOpen = useCallback(() => {
     setIsOpen(true)
@@ -72,7 +81,7 @@ export default function InterviewChat({ userId }: InterviewChatProps) {
       const res = await fetch('/api/interview', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ conversationId, message: userMessage, userId }),
+        body: JSON.stringify({ conversationId, message: userMessage, userId, scope }),
       })
       const data = await res.json()
       if (data.error) throw new Error(data.error)
@@ -89,13 +98,13 @@ export default function InterviewChat({ userId }: InterviewChatProps) {
     } finally {
       setSending(false)
     }
-  }, [input, sending, conversationId, userId])
+  }, [input, sending, conversationId, userId, scope])
 
   return (
     <>
       {/* Floating button */}
       <AnimatePresence>
-        {!isOpen && (
+        {!isOpen && !hideFloatingButton && (
           <motion.button
             initial={{ scale: 0, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
