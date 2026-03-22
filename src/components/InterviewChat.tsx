@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
+import type { ConversationSummary } from '@/lib/types'
 
 interface Message {
   role: 'user' | 'assistant'
@@ -14,9 +15,10 @@ interface InterviewChatProps {
   externalOpen?: boolean
   onExternalOpenChange?: (open: boolean) => void
   hideFloatingButton?: boolean
+  onVoiceAdded?: () => void
 }
 
-export default function InterviewChat({ userId, scope = 'movement', externalOpen, onExternalOpenChange, hideFloatingButton }: InterviewChatProps) {
+export default function InterviewChat({ userId, scope = 'movement', externalOpen, onExternalOpenChange, hideFloatingButton, onVoiceAdded }: InterviewChatProps) {
   const [internalOpen, setInternalOpen] = useState(false)
   const isOpen = externalOpen !== undefined ? externalOpen : internalOpen
   const setIsOpen = (open: boolean) => {
@@ -29,6 +31,8 @@ export default function InterviewChat({ userId, scope = 'movement', externalOpen
   const [loading, setLoading] = useState(false)
   const [conversationId, setConversationId] = useState<string | null>(null)
   const [completed, setCompleted] = useState(false)
+  const [completionSummary, setCompletionSummary] = useState<ConversationSummary | null>(null)
+  const [voiceCount, setVoiceCount] = useState(0)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -88,7 +92,13 @@ export default function InterviewChat({ userId, scope = 'movement', externalOpen
 
       setConversationId(data.conversationId)
       setMessages((prev) => [...prev, { role: 'assistant', content: data.message }])
-      if (data.completed) setCompleted(true)
+
+      if (data.completed) {
+        setCompleted(true)
+        if (data.summary) setCompletionSummary(data.summary)
+        if (data.voiceCount) setVoiceCount(data.voiceCount)
+        onVoiceAdded?.()
+      }
     } catch (err) {
       console.error('Interview send error:', err)
       setMessages((prev) => [
@@ -98,7 +108,18 @@ export default function InterviewChat({ userId, scope = 'movement', externalOpen
     } finally {
       setSending(false)
     }
-  }, [input, sending, conversationId, userId, scope])
+  }, [input, sending, conversationId, userId, scope, onVoiceAdded])
+
+  const handleStartNew = () => {
+    setMessages([])
+    setConversationId(null)
+    setCompleted(false)
+    setCompletionSummary(null)
+    setVoiceCount(0)
+    startInterview()
+  }
+
+  const isMovement = scope === 'movement'
 
   return (
     <>
@@ -134,8 +155,16 @@ export default function InterviewChat({ userId, scope = 'movement', externalOpen
             {/* Header */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-slate-700 shrink-0">
               <div>
-                <h3 className="text-sm font-semibold text-white">Share Your Voice</h3>
-                <p className="text-xs text-slate-400">Help shape the movement</p>
+                <h3 className="text-sm font-semibold text-white">
+                  {completed ? 'Voice captured' : 'Share Your Voice'}
+                </h3>
+                <p className="text-xs text-slate-400">
+                  {completed
+                    ? `You're voice #${voiceCount} in this community`
+                    : isMovement
+                      ? 'Help shape the movement\'s direction'
+                      : 'Share what this project should focus on'}
+                </p>
               </div>
               <button
                 onClick={() => setIsOpen(false)}
@@ -201,22 +230,68 @@ export default function InterviewChat({ userId, scope = 'movement', externalOpen
               <div ref={messagesEndRef} />
             </div>
 
-            {/* Input */}
+            {/* Input / Completion */}
             <div className="border-t border-slate-700 px-3 py-3 shrink-0">
               {completed ? (
-                <div className="text-center py-2">
-                  <p className="text-sm text-indigo-400 mb-2">Your voice has been captured!</p>
-                  <button
-                    onClick={() => {
-                      setMessages([])
-                      setConversationId(null)
-                      setCompleted(false)
-                      startInterview()
-                    }}
-                    className="text-xs text-slate-400 hover:text-slate-200 transition-colors"
-                  >
-                    Start a new conversation
-                  </button>
+                <div className="space-y-3">
+                  {/* Summary of what was captured */}
+                  {completionSummary && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="p-3 bg-indigo-500/8 border border-indigo-500/20 rounded-xl"
+                    >
+                      <p className="text-[10px] text-indigo-400 uppercase tracking-wider font-medium mb-1.5">
+                        What we captured
+                      </p>
+                      {completionSummary.vision && (
+                        <p className="text-xs text-slate-300 mb-1.5 leading-relaxed line-clamp-2">
+                          &ldquo;{completionSummary.vision}&rdquo;
+                        </p>
+                      )}
+                      <div className="flex flex-wrap gap-1">
+                        {completionSummary.priorities?.length > 0 && (
+                          <span className="text-[10px] px-1.5 py-0.5 bg-slate-700/60 rounded text-slate-400">
+                            {completionSummary.priorities.length} priorities
+                          </span>
+                        )}
+                        {completionSummary.ideas?.length > 0 && (
+                          <span className="text-[10px] px-1.5 py-0.5 bg-slate-700/60 rounded text-slate-400">
+                            {completionSummary.ideas.length} ideas
+                          </span>
+                        )}
+                        {completionSummary.concerns?.length > 0 && (
+                          <span className="text-[10px] px-1.5 py-0.5 bg-slate-700/60 rounded text-slate-400">
+                            {completionSummary.concerns.length} concerns
+                          </span>
+                        )}
+                        {completionSummary.skills?.length > 0 && (
+                          <span className="text-[10px] px-1.5 py-0.5 bg-slate-700/60 rounded text-slate-400">
+                            {completionSummary.skills.length} skills
+                          </span>
+                        )}
+                      </div>
+                    </motion.div>
+                  )}
+
+                  <p className="text-[11px] text-slate-500 text-center leading-relaxed">
+                    Your perspective is now visible to the community. Others can read it and see how their views compare.
+                  </p>
+
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleStartNew}
+                      className="flex-1 text-xs py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-slate-300 transition-colors"
+                    >
+                      New conversation
+                    </button>
+                    <button
+                      onClick={() => setIsOpen(false)}
+                      className="flex-1 text-xs py-2 bg-indigo-600 hover:bg-indigo-500 rounded-lg text-white transition-colors"
+                    >
+                      Done
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <div className="flex items-center gap-2">

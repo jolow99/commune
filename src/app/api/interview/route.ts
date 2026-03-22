@@ -228,6 +228,21 @@ export async function POST(req: NextRequest) {
           body: JSON.stringify({ scope: conversationScope }),
         }).catch(console.error)
       )
+
+      // Count total voices for this scope (for feedback)
+      const { count } = await supabase
+        .from('conversations')
+        .select('id', { count: 'exact', head: true })
+        .eq('scope', conversationScope)
+        .not('summary', 'is', null)
+
+      return NextResponse.json({
+        conversationId: id,
+        message: assistantMessage,
+        completed,
+        summary: result.toolCall?.arguments,
+        voiceCount: count || 1,
+      })
     }
 
     return NextResponse.json({

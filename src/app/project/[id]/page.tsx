@@ -10,7 +10,7 @@ import Cursors from '@/components/Cursors'
 import InterviewChat from '@/components/InterviewChat'
 import VoicePanel from '@/components/VoicePanel'
 import NotificationBell from '@/components/NotificationBell'
-import ThemeList from '@/components/ThemeList'
+import CommunityVoices from '@/components/CommunityVoices'
 import { authClient } from '@/lib/auth-client'
 import type { Proposal, ServerBroadcast } from '@/lib/types'
 import Link from 'next/link'
@@ -81,6 +81,7 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
   const [mergingProposalId, setMergingProposalId] = useState<string | null>(null)
   const [voicePanelOpen, setVoicePanelOpen] = useState(false)
   const [interviewOpen, setInterviewOpen] = useState(false)
+  const [voiceRefreshKey, setVoiceRefreshKey] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
 
   // Load initial state
@@ -305,8 +306,11 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
         <div className="flex items-center gap-3">
           <button
             onClick={() => setVoicePanelOpen(true)}
-            className="text-xs bg-slate-800/80 hover:bg-slate-700 text-slate-300 px-3 py-1.5 rounded-lg transition-colors border border-slate-700/50"
+            className="text-xs bg-slate-800/80 hover:bg-slate-700 text-slate-300 px-3 py-1.5 rounded-lg transition-colors border border-slate-700/50 flex items-center gap-1.5"
           >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+            </svg>
             Your Voice
           </button>
           {userId && <NotificationBell userId={userId} onOpenInterview={() => setInterviewOpen(true)} />}
@@ -342,24 +346,27 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
         {/* Left panel: Themes + Proposals */}
         <div className="w-80 bg-slate-900/50 border-r border-slate-800/60 flex flex-col h-full overflow-hidden">
           <div className="flex-1 overflow-y-auto sidebar-scroll">
-            {/* Themes section */}
+            {/* Community Voices */}
             <div className="px-4 pt-4 pb-3">
               <div className="flex items-center gap-2 mb-1">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-500">
-                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                  <circle cx="9" cy="7" r="4" />
+                  <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                  <path d="M16 3.13a4 4 0 0 1 0 7.75" />
                 </svg>
                 <h2 className="text-xs font-display font-semibold text-slate-300 uppercase tracking-wider">
-                  Community Themes
+                  Community Voices
                 </h2>
               </div>
               <p className="text-[11px] text-slate-500 leading-relaxed mb-3">
-                What people are saying about this project. Themes with enough support auto-generate proposals.
+                What people want for this project. Read others&apos; perspectives or share your own.
               </p>
-              <ThemeList
+              <CommunityVoices
                 scope={projectId}
-                projectId={projectId}
                 userId={userId}
-                compact
+                refreshKey={voiceRefreshKey}
+                onStartInterview={() => setInterviewOpen(true)}
               />
             </div>
 
@@ -436,16 +443,6 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
         >
           {submitting ? 'Generating...' : 'Submit'}
         </button>
-        <button
-          onClick={() => setInterviewOpen(true)}
-          className="bg-slate-800/60 hover:bg-slate-700/60 text-slate-300 text-sm px-4 py-2.5 rounded-lg transition-colors flex items-center gap-2 border border-slate-700/40"
-          title="Share your thoughts about this project through a guided interview"
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-          </svg>
-          Share your voice
-        </button>
       </footer>
 
       {/* ── Overlays ── */}
@@ -454,6 +451,8 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
         scope={projectId}
         externalOpen={interviewOpen}
         onExternalOpenChange={setInterviewOpen}
+        hideFloatingButton
+        onVoiceAdded={() => setVoiceRefreshKey(k => k + 1)}
       />
 
       <VoicePanel

@@ -8,6 +8,7 @@ import ProposalDocumentModal from '@/components/ProposalDocumentModal'
 import InterviewChat from '@/components/InterviewChat'
 import VoicePanel from '@/components/VoicePanel'
 import NotificationBell from '@/components/NotificationBell'
+import CommunityVoices from '@/components/CommunityVoices'
 import { authClient } from '@/lib/auth-client'
 import type { Proposal, Project, ServerBroadcast } from '@/lib/types'
 import { useRouter } from 'next/navigation'
@@ -63,6 +64,7 @@ export default function MovementDashboard() {
   const [body, setBody] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [showBodyInput, setShowBodyInput] = useState(false)
+  const [voiceRefreshKey, setVoiceRefreshKey] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -245,8 +247,11 @@ export default function MovementDashboard() {
         <div className="flex items-center gap-3">
           <button
             onClick={() => setVoicePanelOpen(true)}
-            className="text-xs bg-slate-800/80 hover:bg-slate-700 text-slate-300 px-3 py-1.5 rounded-lg transition-colors border border-slate-700/50"
+            className="text-xs bg-slate-800/80 hover:bg-slate-700 text-slate-300 px-3 py-1.5 rounded-lg transition-colors border border-slate-700/50 flex items-center gap-1.5"
           >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+            </svg>
             Your Voice
           </button>
           {userId && <NotificationBell userId={userId} onOpenInterview={() => setInterviewOpen(true)} />}
@@ -273,23 +278,51 @@ export default function MovementDashboard() {
 
       {/* ── Main ── */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Left sidebar: Proposals */}
+        {/* Left sidebar: Voices + Proposals */}
         <div className="w-80 bg-slate-900/50 border-r border-slate-800/60 flex flex-col h-full overflow-hidden">
-          {/* Sidebar header */}
-          <div className="px-4 pt-4 pb-2">
-            <div className="flex items-center gap-2 mb-1">
-              <div className="w-2 h-2 rounded-full bg-indigo-400 animate-pulse-dot" />
-              <h2 className="text-xs font-display font-semibold text-slate-300 uppercase tracking-wider">
-                Project Proposals
-              </h2>
-            </div>
-            <p className="text-[11px] text-slate-500 leading-relaxed">
-              Ideas from the community. Vote to bring them to life — {pending.filter(p => p.status === 'pending').length > 0
-                ? `${pending.filter(p => p.status === 'pending').length} awaiting votes`
-                : 'none pending right now'}
-            </p>
-          </div>
           <div className="flex-1 overflow-y-auto sidebar-scroll">
+            {/* Community Voices */}
+            <div className="px-4 pt-4 pb-3">
+              <div className="flex items-center gap-2 mb-1">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-500">
+                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                  <circle cx="9" cy="7" r="4" />
+                  <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                  <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                </svg>
+                <h2 className="text-xs font-display font-semibold text-slate-300 uppercase tracking-wider">
+                  Community Voices
+                </h2>
+              </div>
+              <p className="text-[11px] text-slate-500 leading-relaxed mb-3">
+                What people think the movement should focus on. Read what others want, or share your own perspective.
+              </p>
+              <CommunityVoices
+                scope="movement"
+                userId={userId}
+                refreshKey={voiceRefreshKey}
+                onStartInterview={() => setInterviewOpen(true)}
+                isMovement
+              />
+            </div>
+
+            {/* Divider */}
+            <div className="border-t border-slate-800/60 mx-4" />
+
+            {/* Proposals */}
+            <div className="px-4 pt-3 pb-1">
+              <div className="flex items-center gap-2 mb-1">
+                <div className="w-2 h-2 rounded-full bg-indigo-400 animate-pulse-dot" />
+                <h2 className="text-xs font-display font-semibold text-slate-300 uppercase tracking-wider">
+                  Project Proposals
+                </h2>
+              </div>
+              <p className="text-[11px] text-slate-500 leading-relaxed">
+                Vote to bring ideas to life — {pending.filter(p => p.status === 'pending').length > 0
+                  ? `${pending.filter(p => p.status === 'pending').length} awaiting votes`
+                  : 'none pending right now'}
+              </p>
+            </div>
             <ProposalFeed
               pending={pending}
               history={history}
@@ -500,15 +533,6 @@ export default function MovementDashboard() {
           >
             {submitting ? 'Submitting...' : 'Submit'}
           </button>
-          <button
-            onClick={() => setInterviewOpen(true)}
-            className="bg-slate-800/60 hover:bg-slate-700/60 text-slate-300 text-sm px-4 py-2.5 rounded-lg transition-colors flex items-center gap-2 border border-slate-700/40"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-            </svg>
-            Share your voice
-          </button>
         </div>
       </footer>
 
@@ -519,6 +543,7 @@ export default function MovementDashboard() {
         externalOpen={interviewOpen}
         onExternalOpenChange={setInterviewOpen}
         hideFloatingButton
+        onVoiceAdded={() => setVoiceRefreshKey(k => k + 1)}
       />
 
       <VoicePanel
