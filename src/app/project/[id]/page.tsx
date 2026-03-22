@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useCallback, useEffect } from 'react'
-import { AnimatePresence } from 'framer-motion'
+import { AnimatePresence, motion } from 'framer-motion'
 import usePartySocket from 'partysocket/react'
 import ProposalFeed from '@/components/ProposalFeed'
 import LivePage from '@/components/LivePage'
@@ -70,6 +70,7 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
   }, [session])
 
   const [projectName, setProjectName] = useState('Project')
+  const [projectDesc, setProjectDesc] = useState('')
   const [liveFiles, setLiveFiles] = useState<Record<string, string>>(DEFAULT_FILES)
   const [liveSpec, setLiveSpec] = useState('')
   const [pending, setPending] = useState<Proposal[]>([])
@@ -95,13 +96,16 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
       .catch((err) => console.error('Failed to load initial state:', err))
   }, [])
 
-  // Load project name
+  // Load project info
   useEffect(() => {
     fetch('/api/projects')
       .then(res => res.json())
       .then(data => {
-        const project = (data.projects || []).find((p: { id: string }) => p.id === projectId)
-        if (project) setProjectName(project.name)
+        const project = (data.projects || []).find((p: { id: string; description?: string }) => p.id === projectId)
+        if (project) {
+          setProjectName(project.name)
+          if (project.description) setProjectDesc(project.description)
+        }
       })
       .catch(console.error)
   }, [projectId])
@@ -269,34 +273,49 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
     [ws]
   )
 
+  const pendingCount = pending.filter(p =>
+    p.projectId === projectId || (!p.projectId && projectId === '00000000-0000-0000-0000-000000000001')
+  ).length
+
   return (
     <div className="h-screen flex flex-col bg-slate-950 text-white">
       <Cursors />
-      {/* Top bar */}
-      <header className="h-12 border-b border-slate-800 flex items-center justify-between px-4 shrink-0">
+
+      {/* ── Header ── */}
+      <header className="h-14 border-b border-slate-800/80 flex items-center justify-between px-5 shrink-0 backdrop-blur-sm bg-slate-950/80">
         <div className="flex items-center gap-3">
           <Link
             href="/"
-            className="text-xs text-slate-400 hover:text-white transition-colors flex items-center gap-1"
+            className="text-xs text-slate-500 hover:text-slate-200 transition-colors flex items-center gap-1 pr-3 border-r border-slate-800"
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <polyline points="15 18 9 12 15 6" />
             </svg>
-            Movement
+            All Projects
           </Link>
-          <h1 className="text-lg font-bold tracking-tight">{projectName}</h1>
+          <div>
+            <h1 className="text-base font-display font-bold tracking-tight leading-none">
+              {projectName}
+            </h1>
+            {projectDesc && (
+              <p className="text-[11px] text-slate-500 mt-0.5 line-clamp-1 max-w-md">{projectDesc}</p>
+            )}
+          </div>
         </div>
         <div className="flex items-center gap-3">
           <button
             onClick={() => setVoicePanelOpen(true)}
-            className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1.5 rounded-lg transition-colors"
+            className="text-xs bg-slate-800/80 hover:bg-slate-700 text-slate-300 px-3 py-1.5 rounded-lg transition-colors border border-slate-700/50"
           >
             Your Voice
           </button>
           {userId && <NotificationBell userId={userId} onOpenInterview={() => setInterviewOpen(true)} />}
-          <span className="text-xs text-slate-500">
-            {pending.filter(p => p.projectId === projectId || (!p.projectId && projectId === '00000000-0000-0000-0000-000000000001')).length} pending
-          </span>
+          {pendingCount > 0 && (
+            <span className="text-[11px] text-amber-400/80 flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-400/60" />
+              {pendingCount} pending
+            </span>
+          )}
           {session?.user ? (
             <div className="flex items-center gap-2">
               <span className="text-xs text-slate-400">{session.user.name}</span>
@@ -310,7 +329,7 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
           ) : (
             <button
               onClick={() => authClient.signIn.social({ provider: 'google' })}
-              className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1.5 rounded-lg transition-colors"
+              className="text-xs bg-slate-800/80 hover:bg-slate-700 text-slate-300 px-3 py-1.5 rounded-lg transition-colors border border-slate-700/50"
             >
               Sign in
             </button>
@@ -318,16 +337,24 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
         </div>
       </header>
 
-      {/* Main content */}
+      {/* ── Main ── */}
       <div className="flex-1 flex overflow-hidden">
         {/* Left panel: Themes + Proposals */}
-        <div className="w-80 bg-slate-900 border-r border-slate-700 flex flex-col h-full overflow-hidden">
-          <div className="flex-1 overflow-y-auto">
-            {/* Project themes */}
-            <div className="px-3 pt-4 pb-2">
-              <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-2">
-                Themes
-              </h2>
+        <div className="w-80 bg-slate-900/50 border-r border-slate-800/60 flex flex-col h-full overflow-hidden">
+          <div className="flex-1 overflow-y-auto sidebar-scroll">
+            {/* Themes section */}
+            <div className="px-4 pt-4 pb-3">
+              <div className="flex items-center gap-2 mb-1">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-500">
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                </svg>
+                <h2 className="text-xs font-display font-semibold text-slate-300 uppercase tracking-wider">
+                  Community Themes
+                </h2>
+              </div>
+              <p className="text-[11px] text-slate-500 leading-relaxed mb-3">
+                What people are saying about this project. Themes with enough support auto-generate proposals.
+              </p>
               <ThemeList
                 scope={projectId}
                 projectId={projectId}
@@ -337,9 +364,26 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
             </div>
 
             {/* Divider */}
-            <div className="border-t border-slate-700 mx-3" />
+            <div className="border-t border-slate-800/60 mx-4" />
 
-            {/* Proposals */}
+            {/* Proposals section */}
+            <div className="px-4 pt-3 pb-1">
+              <div className="flex items-center gap-2 mb-1">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-500">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                  <polyline points="14 2 14 8 20 8" />
+                  <line x1="16" y1="13" x2="8" y2="13" />
+                  <line x1="16" y1="17" x2="8" y2="17" />
+                </svg>
+                <h2 className="text-xs font-display font-semibold text-slate-300 uppercase tracking-wider">
+                  Proposed Changes
+                </h2>
+              </div>
+              <p className="text-[11px] text-slate-500 leading-relaxed">
+                Vote on changes to this project&apos;s deliverable. The live preview on the right shows the current state.
+              </p>
+            </div>
+
             <ProposalFeed
               pending={pending}
               history={history}
@@ -355,31 +399,56 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
         </div>
 
         {/* Right: Live preview */}
-        <LivePage files={liveFiles} />
+        <div className="flex-1 relative">
+          <LivePage files={liveFiles} />
+          {/* Preview label */}
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.5 }}
+            className="absolute top-3 right-4 text-[10px] text-slate-500 bg-slate-900/80 backdrop-blur-sm px-2 py-1 rounded border border-slate-800/60 pointer-events-none"
+          >
+            Live preview — changes apply when proposals are merged
+          </motion.div>
+        </div>
       </div>
 
-      {/* Bottom bar */}
-      <footer className="h-14 border-t border-slate-800 flex items-center gap-3 px-4 shrink-0">
-        <input
-          ref={inputRef}
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
-          placeholder="Describe a change to the page..."
-          disabled={submitting}
-          className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 disabled:opacity-50"
-        />
+      {/* ── Bottom bar ── */}
+      <footer className="border-t border-slate-800/80 flex items-center gap-3 px-5 py-3 shrink-0 bg-slate-950/90 backdrop-blur-sm">
+        <div className="flex-1 relative">
+          <input
+            ref={inputRef}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
+            placeholder="Describe a change you'd like to see..."
+            disabled={submitting}
+            className="w-full bg-slate-900/80 border border-slate-700/60 rounded-lg pl-4 pr-28 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500/60 input-focus disabled:opacity-50"
+          />
+          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-slate-600 pointer-events-none">
+            Propose a change
+          </span>
+        </div>
         <button
           onClick={handleSubmit}
           disabled={submitting || !input.trim()}
-          className="bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-700 disabled:text-slate-500 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+          className="bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-800 disabled:text-slate-600 text-white text-sm font-medium px-5 py-2.5 rounded-lg transition-colors border border-indigo-500/50 disabled:border-slate-700/40"
         >
           {submitting ? 'Generating...' : 'Submit'}
         </button>
-        <span className="text-xs text-slate-600">{userId.slice(0, 12)}</span>
+        <button
+          onClick={() => setInterviewOpen(true)}
+          className="bg-slate-800/60 hover:bg-slate-700/60 text-slate-300 text-sm px-4 py-2.5 rounded-lg transition-colors flex items-center gap-2 border border-slate-700/40"
+          title="Share your thoughts about this project through a guided interview"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+          </svg>
+          Share your voice
+        </button>
       </footer>
 
-      {/* Interview chat */}
+      {/* ── Overlays ── */}
       <InterviewChat
         userId={userId}
         scope={projectId}
@@ -387,7 +456,6 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
         onExternalOpenChange={setInterviewOpen}
       />
 
-      {/* Voice panel */}
       <VoicePanel
         isOpen={voicePanelOpen}
         onClose={() => setVoicePanelOpen(false)}
@@ -395,7 +463,6 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
         onStartInterview={() => { setVoicePanelOpen(false); setInterviewOpen(true) }}
       />
 
-      {/* Preview modal */}
       <AnimatePresence>
         {previewProposal && (
           <PreviewModal
